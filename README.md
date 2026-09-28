@@ -10,6 +10,7 @@ Prototipo funcional desarrollado por **Batch S26** para el **Entregable 2 (Misi�
 - `tools.py`: Herramientas de consulta y cruce de fechas sobre `D7`, `D6` y `D2`.
 - `data_loader.py`: Ingesta y normalización de archivos CSV y GeoJSON.
 - **Datasets integrados:** `D7_calendar.csv`, `D6_services_map.geojson` y `D2_support_services.csv`.
+- `análisis data pack.R`: Script en R con el diagnóstico estadístico de línea base (D1 y D3) que fundamenta las reglas del motor.
 
 ## ⚙️ Instalación y Ejecución
 
