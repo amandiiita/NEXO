@@ -46,4 +46,4 @@ def enrich_services_with_history(services, support_history):
     history["median_wait_days"] = history["median_wait_days"].round(0)
     history["attendance_rate"] = (history["attendance_rate"] * 100).round(1)
 
-    return services.merge(history, on="service_id", how="left")
+    return services.merge(history, on="service_id", how="left", validate="many_to_one")

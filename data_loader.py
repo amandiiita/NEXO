@@ -31,4 +31,22 @@ def load_all_data():
     calendar = load_calendar()
     support_history = load_support_history()
     services = load_services_map()
+    schemas = (
+        (calendar, {"calendar_event_id", "period_id", "event_type", "title", "start_date",
+                    "end_date", "institution_id", "district_id"}),
+        (support_history, {"service_id", "wait_days", "attended"}),
+        (services, {"service_id", "name", "service_type", "district_id", "schedule",
+                    "channels", "capacity", "referral_information"}),
+    )
+    if any(not fields.issubset(table.columns) for table, fields in schemas):
+        raise ValueError("Faltan columnas requeridas en el catálogo de Aethera")
+    for table, key in ((services, "service_id"), (calendar, "calendar_event_id")):
+        if table[key].isna().any() or not table[key].is_unique:
+            raise ValueError(f"El catálogo contiene identificadores inválidos en {key}")
+    for column in ("start_date", "end_date"):
+        pd.to_datetime(calendar[column], format="%Y-%m-%d", errors="raise")
+        if calendar[column].isna().any():
+            raise ValueError("Hay fechas incompletas en el calendario")
+    if (calendar["end_date"] < calendar["start_date"]).any():
+        raise ValueError("El calendario contiene rangos invertidos")
     return calendar, support_history, services

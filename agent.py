@@ -1,4 +1,4 @@
-import json
+from nexo_model import classify, compose_intro
 from tools import (
     search_calendar_events,
     search_services,
@@ -64,54 +64,12 @@ def extract_context_from_text(text, current_context, api_key=None):
             updated["institution_id"] = code
             break
 
-    # 2. Interpretación Semántica Estructural con Gemini (A prueba de balas)
+    # La aplicación valida los datos temporales por separado.
     if api_key and api_key.strip():
-        try:
-            from google import genai
-            client = genai.Client(api_key=api_key.strip())
-            prompt = f"""
-            Analiza este mensaje del usuario: "{text}"
-            
-            Tu ÚNICA tarea es devolver un objeto JSON válido con la clasificación de la intención del usuario.
-            
-            OPCIONES OBLIGATORIAS PARA LA CLAVE "goal":
-            - "human_support": Si expresa sentirse mal, triste, en crisis o necesita ayuda psicológica.
-            - "out_of_context": Si pide un chiste, una receta de cocina, o habla de CUALQUIER tema que NO sea vida universitaria.
-            - "social_connection": Si busca actividades, eventos, conocer gente o integrarse a la universidad.
-            
-            Devuelve EXACTAMENTE este formato JSON (sin texto adicional, sin comillas invertidas de markdown):
-            {{
-              "goal": "Escribe_Aqui_La_Opcion_Elegida",
-              "interpreted_need": "Breve resumen de lo que pidió el usuario"
-            }}
-            """
-            # AQUÍ ACTUALIZAMOS A LA VERSIÓN 3.8
-            resp = client.models.generate_content(model="gemini-3.8-flash", contents=prompt)
-            
-            # Limpieza exhaustiva para que el JSON no rompa el código
-            raw = resp.text.strip()
-            if raw.startswith("```json"):
-                raw = raw[7:]
-            if raw.startswith("```"):
-                raw = raw[3:]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-            raw = raw.strip()
-            
-            llm_data = json.loads(raw)
-            
-            new_goal = llm_data.get("goal")
-            # Solo actualizamos el goal si Gemini nos dio una de las 3 opciones válidas
-            if new_goal in ["human_support", "out_of_context", "social_connection"]:
-                updated["goal"] = new_goal
-                
-            if llm_data.get("interpreted_need"):
-                updated["llm_interpreted_need"] = llm_data["interpreted_need"]
-                
-        except Exception as e:
-            # Si Gemini falla, te lo avisará en la terminal negra de tu compu
-            print(f"⚠️ Error leyendo a Gemini: {e}")
-            pass
+        intent, model, _ = classify(text, api_key.strip())
+        if intent in ("human_support", "out_of_context", "social_connection", "activities"):
+            updated["goal"] = "social_connection" if intent == "activities" else intent
+            updated["llm_interpreted_need"] = f"Intención {intent} clasificada por {model}"
 
     # Fallback de seguridad por si falla el internet o la API
     if not updated.get("goal"):
@@ -121,29 +79,16 @@ def extract_context_from_text(text, current_context, api_key=None):
 
 
 def generate_grounded_explanation(student_context, top_services, top_events, api_key=None):
+    """Texto verificable con acompañamiento opcional; nunca confiar datos al LLM."""
     default_msg = (
-        f"Encontré y prioricé estas oportunidades reales del Data Pack compatibles con tu "
-        f"disponibilidad {'extendida (>18:00 / sábado)' if student_context.get('after_18h_or_weekend') else 'general'}, "
-        f"tu ubicación en {student_context.get('district_id', 'tu distrito')} y tu institución ({student_context.get('institution_id', 'tu universidad')}):"
+        f"Encontré estas opciones en el catálogo de Aethera para tu búsqueda. "
+        f"La disponibilidad publicada, los contactos y las fechas se consultan en D6/D7; "
+        f"una fecha del calendario no garantiza cupos ni confirma la hora exacta."
     )
     if not api_key or not api_key.strip():
         return default_msg
-
-    try:
-        from google import genai
-        client = genai.Client(api_key=api_key.strip())
-        prompt = f"""
-        Eres NEXO, un agente logístico de integración universitaria en Ciudad Aethera.
-        Contexto del estudiante: {json.dumps(student_context)}
-        Mejor espacio en D6: {json.dumps(top_services[0] if top_services else {})}
-        Mejores eventos en D7: {json.dumps(top_events[:2] if top_events else [])}
-        Redacta en 3 líneas claras y cercanas por qué priorizaste estas opciones específicas.
-        """
-        # AQUÍ ACTUALIZAMOS A LA VERSIÓN 3.8
-        resp = client.models.generate_content(model="gemini-3.8-flash", contents=prompt)
-        return resp.text.strip()
-    except Exception:
-        return default_msg
+    intro, _, status = compose_intro(default_msg, api_key)
+    return intro + " " + default_msg if status == "used" else default_msg
 
 
 def run_nexo(calendar, services, support_history, student_context, api_key=None):
@@ -194,6 +139,7 @@ def run_nexo(calendar, services, support_history, student_context, api_key=None)
         for _, row in support_spaces.iterrows():
             referrals.append({
                 "service_id": row["service_id"],
+                "id": row["service_id"],
                 "name": row["name"],
                 "service_type": row["service_type"],
                 "district_id": row["district_id"],
@@ -280,6 +226,7 @@ def run_nexo(calendar, services, support_history, student_context, api_key=None)
         score, reasons = calculate_service_score(service, student_context)
         ranked_services.append({
             "id": service["service_id"],
+            "service_id": service["service_id"],
             "name": service["name"],
             "service_type": service["service_type"],
             "district_id": service["district_id"],

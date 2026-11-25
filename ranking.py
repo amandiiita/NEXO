@@ -63,7 +63,7 @@ def calculate_event_score(event, student_context, evaluation_periods):
 
         if not conflict:
             score += 15
-            reasons.append("No choca con tus semanas de exámenes en el calendario")
+            reasons.append("Las fechas no se superponen con las evaluaciones registradas en este período")
 
     return score, reasons
 
@@ -74,7 +74,6 @@ def calculate_service_score(service, student_context):
     reasons = []
 
     student_district = student_context.get("district_id")
-    late_or_weekend = student_context.get("after_18h_or_weekend", False)
     dist_label = DISTRICT_NAMES.get(student_district, student_district)
 
     # 1. DISTRITO — 30 puntos
@@ -86,26 +85,14 @@ def calculate_service_score(service, student_context):
         score += 10
         reasons.append(f"Ubicado en {other_dist}")
 
-    # 2. HORARIO — 35 puntos
-    schedule = str(service["schedule"])
-    if late_or_weekend:
-        if "20:00" in schedule or "Sat" in schedule:
-            score += 35
-            reasons.append("Cuenta con horario vespertino (hasta las 20:00 hrs) y abre los sábados")
-        elif "18:00" in schedule:
-            score += 10
-            reasons.append("Atiende de lunes a viernes hasta las 18:00 hrs")
-    else:
+    # La app filtra el cruce exacto con los turnos publicados antes de ordenar.
+    if student_context.get("schedule_filtered"):
         score += 35
-        reasons.append("Horario compatible con tu disponibilidad semanal")
+        reasons.append("El horario publicado coincide en parte con la disponibilidad indicada")
 
     # 3. TIPO DE ESPACIO — 20 puntos
     if service["service_type"] == "peer_support":
         score += 20
         reasons.append("Espacio horizontal diseñado para conocer pares y crear comunidad")
-
-    # 4. CONTINUIDAD — 15 puntos
-    score += 15
-    reasons.append("Acceso continuo durante todo el semestre sin chocar con evaluaciones")
 
     return score, reasons

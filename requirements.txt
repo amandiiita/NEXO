@@ -1,3 +1,3 @@
-streamlit
-pandas
-google-genai
+streamlit==1.67.0
+pandas==2.2.3
+-r requirements-ia.txt

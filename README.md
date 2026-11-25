@@ -12,9 +12,10 @@ Desarrollado por **BatchS26 (Chile–Perú)** para la **Misión 4: Aislamiento s
 ## Funcionalidades
 
 - **Conversación contextual:** interpreta necesidades expresadas en lenguaje natural, mantiene el contexto y solicita información relevante.
-- **Recomendaciones personalizadas:** prioriza hasta dos espacios de apoyo entre pares y tres actividades universitarias según criterios de compatibilidad.
+- Las recomendaciones usan el distrito, la institución y los horarios confirmados. Si un estudiante escribe «trabajo hasta las 18», NEXO le pregunta si puede participar después.
+- En **Cómo participar** se muestran horarios, canales y el siguiente paso que se puede guardar durante la sesión. Si faltan una dirección o un teléfono oficial, NEXO indica qué consultar a la institución.
 - **Recomendaciones explicables:** presenta ubicaciones, horarios, fechas, características y razones de priorización.
-- **Trazabilidad del agente:** visualiza el objetivo identificado y las restricciones consideradas durante la interacción.
+- Los **Detalles técnicos** de la barra lateral muestran qué intervención tuvo Gemini en el último turno y cuándo respondió el motor local.
 - **Orientación hacia apoyo humano:** facilita información sobre servicios institucionales de orientación y apoyo entre pares.
 - **Demostraciones integradas:** permite explorar los recorridos conversacional, de integración y de derivación desde la interfaz.
 
@@ -27,8 +28,9 @@ Su arquitectura modular, desarrollada en Python, permite mantener la lógica pri
 ```mermaid
 flowchart TD
     U["Estudiante"] --> A["app.py · Interfaz Streamlit"]
-    A --> B["agent.py · Interpretación y flujo"]
-    B <--> G["Gemini 3.8 Flash"]
+    A <--> M["nexo_model.py · Intención y estilo"]
+    M <--> G["Gemini"]
+    A --> B["agent.py · Búsqueda en el catálogo"]
     B --> T["tools.py · Consultas"]
     B --> R["ranking.py · Priorización"]
     D[("Data Pack: D2 · D6 · D7")] --> L["data_loader.py"]
@@ -41,7 +43,8 @@ flowchart TD
 | Módulo | Función |
 | --- | --- |
 | `app.py` | Interfaz, conversación, recomendaciones y trazabilidad |
-| `agent.py` | Interpretación de solicitudes y coordinación del agente |
+| `nexo_model.py` | Solicitud a Gemini, validación de la salida y límite de espera |
+| `agent.py` | Procesamiento del contexto y búsqueda de servicios y actividades |
 | `tools.py` | Consulta de actividades, servicios y antecedentes históricos |
 | `ranking.py` | Priorización mediante criterios explícitos |
 | `data_loader.py` | Lectura y preparación de archivos CSV y GeoJSON |
@@ -49,16 +52,9 @@ flowchart TD
 
 ### Modelos y herramientas de IA
 
-NEXO utiliza **Google Gemini 3.8 Flash** (`gemini-3.8-flash`), integrado mediante **Google GenAI SDK**.
+Con una clave configurada, NEXO consulta a Gemini mediante Google GenAI SDK en los turnos habituales de texto, botones y demos. El modelo propone una intención y elige entre estilos de redacción verificados. NEXO comprueba el horario y obtiene del catálogo los nombres, fechas y canales que muestra. Las solicitudes sensibles se atienden por la ruta local de orientación a personas.
 
-El modelo participa en dos funciones principales:
-
-- **Interpretación:** identifica intenciones y necesidades expresadas en lenguaje natural.
-- **Generación de explicaciones:** comunica las recomendaciones de manera contextualizada y comprensible.
-
-El funcionamiento se complementa con herramientas propias desarrolladas en Python, que consultan información institucional y aplican criterios de priorización.
-
-**Tecnologías principales:** Python, Streamlit, Pandas, Google GenAI SDK y Gemini 3.8 Flash.
+Si Gemini supera los 4,5 segundos de espera, devuelve un error o propone una respuesta inválida, el motor local responde en ese mismo turno y conserva la conversación. Después de dos fallos consecutivos, o de inmediato ante errores como cuota o credenciales, NEXO pausa las consultas durante 45 segundos. El siguiente turno después de la pausa puede volver a usar el modelo. Sin una clave, la app funciona directamente con las reglas locales.
 
 ### Datos utilizados
 
@@ -78,10 +74,7 @@ El diagnóstico inicial fue desarrollado en R utilizando información adicional 
 
 ## Instalación y ejecución
 
-**Requisitos:**
-- Python 3.10 o superior
-- Git
-- Clave de API de Gemini
+Las pruebas se ejecutaron con Python 3.12. Para clonar el proyecto necesitas Git. La clave de Gemini es opcional.
 
 ### 1. Clonar el repositorio
 
@@ -110,30 +103,38 @@ python -m venv .venv
 
 ```bash
 python -m pip install -r requirements.txt
-python -m pip install google-genai
 ```
 
 ### 4. Configurar Gemini
 
-Crear el archivo `.streamlit/secrets.toml`:
+Para activar la IA, puedes definir la variable de entorno `GEMINI_API_KEY` o crear el archivo local `.streamlit/secrets.toml` dentro del proyecto con este contenido.
 
 ```toml
 GEMINI_API_KEY = "TU_CLAVE_DE_API"
 ```
 
-La clave debe mantenerse fuera del repositorio público.
+El modelo predeterminado del proyecto es `gemini-3.8-flash`. Si tu cuenta usa otro modelo, indica su identificador en `NEXO_GEMINI_MODEL` como variable de entorno o en el mismo archivo de secretos. Git excluye ese archivo.
 
 ### 5. Ejecutar la aplicación
 
 ```bash
-streamlit run app.py
+python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8503
 ```
 
-La aplicación estará disponible en:
-
-`http://localhost:8501`
+Abre `http://127.0.0.1:8503` en tu navegador.
 
 Los archivos `D2_support_services.csv`, `D6_services_map.geojson` y `D7_calendar.csv` deben encontrarse en la carpeta `data/`.
+
+### Comprobar la actualización
+
+Con el entorno activo y desde la raíz del repositorio, ejecuta las dos baterías de pruebas. El primer comando comprueba 52 conversaciones de Streamlit y guarda el detalle en JSON. El segundo comprueba 28 casos del motor. Los casos de Gemini usan respuestas simuladas y se pueden ejecutar sin clave.
+
+```bash
+python validar_nexo.py resultados_nexo.json
+python test_fallback_sin_streamlit.py
+```
+
+Para probarlo en el chat, escribe «Quiero conocer gente, pero trabajo hasta las 18». Confirma la disponibilidad, elige el distrito y la institución, y abre **Cómo participar**. Puedes comprobar cómo se resolvió cada turno en **Detalles técnicos**.
 
 ## IA responsable
 
