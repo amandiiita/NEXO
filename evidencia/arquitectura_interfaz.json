@@ -1,0 +1,314 @@
+[
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_apertura_y_pregunta",
+    "caso": "Admite una pregunta inédita del campo correcto y rechaza pedir un dato diferente.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_cambio_de_redactor",
+    "caso": "El resultado de la herramienta y la memoria son idénticos en ambos intentos de redacción.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_codigos_http",
+    "caso": "Errores HTTP 401, 403, 404, 408, 429, 503 y 500 tienen causas auditables.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_config_falla_cerrada",
+    "caso": "Modo desconocido desactiva la red y un timeout inválido recupera el valor de referencia.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_credencial_ausente",
+    "caso": "Una clave ausente se omite sin abrir conexión y se explica en la traza.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_cuatro_llamadas",
+    "caso": "Máximo cuatro llamadas, incluso con dos etapas y varios fallos.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_error_respuesta",
+    "caso": "JSON roto y contenido inválido saltan al tercer modelo.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_ficciones",
+    "caso": "Números, direcciones, registros, enlaces, cupos y eventos inventados activan rechazo semántico.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_http_ollama",
+    "caso": "HTTP real de loopback y servidor Ollama simulado: esquema, chat y respuesta sin razonamiento.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_inyeccion_en_contrato",
+    "caso": "El plan rechaza herramientas ajenas, preguntas redundantes y argumentos sin cita del usuario.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_local_exclusivo",
+    "caso": "Local excluye Groq y Gemini aun con claves y aunque el orden diga otra cosa.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_ollama_loopback",
+    "caso": "Una dirección externa, credenciales embebidas o un alias cloud se rechazan antes de abrir red.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_orden",
+    "caso": "Respeta el orden alternativo y evita proveedores repetidos.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_python",
+    "caso": "El guardián acepta 3.12 y sale con instrucciones antes de importar Pandas en 3.14.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_recuperacion",
+    "caso": "La cuota abre solo el circuito afectado; un nuevo turno lo recupera tras Retry-After.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_sin_historial_ni_persona",
+    "caso": "Minimiza el contexto, evita texto libre de turnos anteriores y reconoce identificadores sintéticos.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_tiempo_pared",
+    "caso": "Un transporte bloqueado no prolonga el presupuesto ni escribe en la sesión al terminar.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_todo_caido",
+    "caso": "Con un fallo de cada servicio, la capa de modelos cede a las reglas.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_wire_gemini",
+    "caso": "Gemini usa el esquema JSON y filtra partes thought antes de validar.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_arquitectura.Arquitectura.test_wire_groq",
+    "caso": "El adaptador Groq genera el esquema estricto y descarta reasoning.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_aceptacion_y_memoria",
+    "caso": "Continuidad semántica al cambiar de proveedor durante una invitación.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_alucinacion_redactor",
+    "caso": "El redactor inventa cupos: se descarta su salida y otro modelo compone sobre la misma ficha.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_ampliar_y_volver",
+    "caso": "Consultar el calendario ampliado y regresar conserva ubicación, interés y horario.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_apoyo_no_sale",
+    "caso": "Orientación, peligro y demo sensible no salen a ningún proveedor ni incluyen filas de D2.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_caida_local",
+    "caso": "El daemon Ollama caído no detiene la respuesta de Gemini.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_calendario_filtrado",
+    "caso": "El agente ejecuta D7 sin consultar D2 ni D6 cuando el objetivo es el calendario.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_campo_decidido_por_plan",
+    "caso": "El plan puede elegir otro dato faltante y redactar una pregunta propia, fuera de un guion fijo.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_datos_atribuidos",
+    "caso": "La ficha concuerda por identificador con D6; D2 solo respalda el histórico agregado.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_demo_conversacional",
+    "caso": "Demo guiada avanza desde una pregunta hasta la tarjeta; el próximo paso solo se guarda una vez.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_ficha_implicita",
+    "caso": "Una petición indirecta consulta varios campos sobre un referente explícito sin asumir el anterior.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_fuentes_y_fecha",
+    "caso": "Una fecha real se coteja con D7 y una hora no publicada se comunica como dato faltante.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_gemini",
+    "caso": "Gemini disponible, plan y respuesta generada por el doble.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_groq",
+    "caso": "Groq disponible, plan y respuesta generada por el doble; nuevo giro idiomático.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_identificador_local",
+    "caso": "Un correo sintético reserva el turno para el proveedor local; la traza no contiene el mensaje.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_instrucciones_y_botones",
+    "caso": "Las instrucciones del sistema quedan protegidas y un clic no puede convertirse en otra acción.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_nadie_responde",
+    "caso": "Tres fallos → reglas, botones funcionales, sin alterar el distrito ni duplicar turnos.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_ollama",
+    "caso": "Ollama disponible, plan y respuesta generada por el doble local.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_plan_falla_restricciones",
+    "caso": "Un plan que pretende guardar sin permiso se sustituye sin efectos en la sesión.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_proveedores_caen",
+    "caso": "Con los dos proveedores de nube caídos, el plan y la redacción pasan a Ollama.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_redactores_agotados",
+    "caso": "Un plan aceptado se conserva cuando todos los redactores fallan: la respuesta se identifica como reglas.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_reintento_datos",
+    "caso": "Un fallo del catálogo revierte el turno y permite recuperarlo con el botón, sin duplicar el guardado.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_sesion_aislada",
+    "caso": "Una segunda sesión no ve la selección ni el paso guardado de otra persona.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_solo_local",
+    "caso": "Modo local con credenciales configuradas: solo interviene Ollama y se mantiene la ficha D6.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_interfaz.Integracion.test_trabajo_no_equivale",
+    "caso": "Ni una franja propuesta por el plan convierte el trabajo en disponibilidad.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_ayuda_entre_estudiantes",
+    "caso": "Buscar un grupo de estudio continúa siendo una necesidad de integración.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_cambio_referente",
+    "caso": "El nombre en la pregunta de participación prevalece sobre la tarjeta anterior.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_contexto_largo_nube",
+    "caso": "La memoria enviada sigue acotada en un diálogo largo y conserva el referente institucional.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_d7_desde_chat_vacio",
+    "caso": "Localiza una actividad nombrada en D7 aun sin perfil previo.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_horario_impreciso",
+    "caso": "Una franja vaga sustituye la disponibilidad antigua por una pregunta, sin inventar horas.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_ordenar_hechos",
+    "caso": "El redactor puede priorizar los cupos antes del teléfono sin perder campos ni el siguiente paso.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_recurso_inexistente",
+    "caso": "Un espacio que no figura en D6 no hereda la dirección del seleccionado.",
+    "resultado": "OK",
+    "detalle": ""
+  },
+  {
+    "id": "pruebas.test_limites.Limites.test_seguimiento_libre",
+    "caso": "El modelo formula una invitación nueva vinculada a un botón real.",
+    "resultado": "OK",
+    "detalle": ""
+  }
+]

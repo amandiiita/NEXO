@@ -1,0 +1,6 @@
+Auditoría privada de NEXO · 26 de noviembre de 2026
+Conversaciones comparables: 21/36 en la versión anterior y 36/36 en la actualización.
+Pruebas adicionales de contratos, datos y recorridos de la interfaz: 52/52.
+Servidor real: salud HTTP y siete hitos verificados mediante el protocolo WebSocket de Streamlit.
+Modelos reales: pendientes en el equipo con credenciales nuevas y Ollama activo.
+Consultar AUDITORIA.md, MATRIZ_PRUEBAS.csv, COMPARACION.csv y evidencia/.

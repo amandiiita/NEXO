@@ -1,5 +1,7 @@
 from pathlib import Path
 import json
+from entorno import comprobar
+comprobar()
 import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent

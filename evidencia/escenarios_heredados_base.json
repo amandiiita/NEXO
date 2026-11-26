@@ -1,0 +1,418 @@
+[
+  {
+    "n": 1,
+    "entrada": "Consulta completa en Nébula",
+    "esperado": "Espacio Lumen Pares con horario publicado.",
+    "observado": "Empezaría por este espacio en Nébula. Su horario coincide con tu disponibilidad. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Lumen Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Nébula</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en el distrito que indicaste.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 40.1 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 2,
+    "entrada": "Consulta completa en Vector",
+    "esperado": "Espacio Trama Pares.",
+    "observado": "Empezaría por este espacio en Vector. Su horario coincide con tu disponibilidad. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Trama Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Vector</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en el distrito que indicaste.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 41.3 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 3,
+    "entrada": "Quiero conocer gente",
+    "esperado": "Pide solo el horario.",
+    "observado": "¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 4,
+    "entrada": "Estudio en Nova Aether, me muevo por Nébula, trabajo durante el día y quiero conocer gente",
+    "esperado": "Pide disponibilidad y conserva distrito e institución.",
+    "observado": "¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
+    "error": null,
+    "correccion": "Distinguir turno de trabajo de tiempo libre."
+  },
+  {
+    "n": 5,
+    "entrada": "Quiero conocer gente, pero trabajo de 9 a 18 → sí",
+    "esperado": "Confirma primero y acepta solo después de las 18.",
+    "observado": "Disponibilidad confirmada: ((0, 1, 2, 3, 4, 5, 6), 1080, 1440). ¿En qué distrito te mueves normalmente?",
+    "error": null,
+    "correccion": "Separar rangos laborales de ventanas de participación."
+  },
+  {
+    "n": 6,
+    "entrada": "Trabajo hasta las 18 → no",
+    "esperado": "Pide otro horario, sin confirmar el sugerido.",
+    "observado": "¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 7,
+    "entrada": "Trabajo de 9 a 18, pero puedo los sábados",
+    "esperado": "Sábado completo; el turno no se toma como disponibilidad.",
+    "observado": "Disponibilidad confirmada: ((5,), 0, 1440). ¿En qué distrito te mueves normalmente?",
+    "error": null,
+    "correccion": "Priorizar la cláusula explícita."
+  },
+  {
+    "n": 8,
+    "entrada": "Después de las seis → 18:00",
+    "esperado": "Pregunta 06:00 o 18:00 y usa el horario elegido.",
+    "observado": "Disponibilidad confirmada: ((0, 1, 2, 3, 4, 5, 6), 1080, 1440). ¿En qué distrito te mueves normalmente?",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 9,
+    "entrada": "Después de las seis de la tarde",
+    "esperado": "Interpreta 18:00.",
+    "observado": "Disponibilidad confirmada: ((0, 1, 2, 3, 4, 5, 6), 1080, 1440). ¿En qué distrito te mueves normalmente?",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 10,
+    "entrada": "No puedo después de las 18, solo los sábados",
+    "esperado": "Sábado hasta las 18:00.",
+    "observado": "Disponibilidad confirmada: ((5,), 0, 1080). ¿En qué distrito te mueves normalmente?",
+    "error": null,
+    "correccion": "Cruzar la restricción negativa con los días permitidos."
+  },
+  {
+    "n": 11,
+    "entrada": "Sábado después de las 18 → «No puedo después de las 18»",
+    "esperado": "Pide un horario válido y revisa la restricción anterior.",
+    "observado": "¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
+    "error": null,
+    "correccion": "Evitar recomendar con disponibilidad invalidada."
+  },
+  {
+    "n": 12,
+    "entrada": "No puedo los domingos, pero sí el fin de semana",
+    "esperado": "Conserva sábado y excluye domingo.",
+    "observado": "Disponibilidad confirmada: ((5,), 0, 1440). ¿En qué distrito te mueves normalmente?",
+    "error": null,
+    "correccion": "Excluir días declarados como no disponibles."
+  },
+  {
+    "n": 13,
+    "entrada": "Cambiar de Nébula a Vector",
+    "esperado": "Trama Pares y misma institución/horario.",
+    "observado": "Disponibilidad confirmada: ((0, 1, 2, 3, 4, 5, 6), 1080, 1440). Empezaría por este espacio en Vector. Su horario coincide con tu disponibilidad. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Trama Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Vector</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en el distrito que indicaste.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 41.3 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 14,
+    "entrada": "Cambiar a sábados en Nébula",
+    "esperado": "Nueva disponibilidad y mismo distrito.",
+    "observado": "Disponibilidad confirmada: ((5,), 0, 1440). Empezaría por este espacio en Nébula. Su horario coincide con tu disponibilidad. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Lumen Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Nébula</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en el distrito que indicaste.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 40.1 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 15,
+    "entrada": "¿Dónde queda?",
+    "esperado": "Nombre y distrito de la opción activa.",
+    "observado": "Espacio Lumen Pares figura en Nébula. El catálogo D6 no incluye la dirección exacta. Puedes pedirle a la institución el punto de atención.",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 16,
+    "entrada": "¿En qué horario funciona?",
+    "esperado": "Horario documentado del espacio actual.",
+    "observado": "El horario publicado de Espacio Lumen Pares es Lunes a sábado · 12:00 a 20:00.",
+    "error": null,
+    "correccion": "Ampliar expresiones de seguimiento."
+  },
+  {
+    "n": 17,
+    "entrada": "Dirección exacta de Trama Pares con chat vacío",
+    "esperado": "Vector; avisa que D6 no tiene la dirección.",
+    "observado": "Espacio Trama Pares figura en Vector. El catálogo D6 no incluye la dirección exacta. Puedes pedirle a la institución el punto de atención.",
+    "error": null,
+    "correccion": "Búsqueda nominal conservada."
+  },
+  {
+    "n": 18,
+    "entrada": "¿Y el teléfono?",
+    "esperado": "Aclara que el número oficial no figura.",
+    "observado": "El catálogo no confirma el número oficial para Espacio Trama Pares. Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Trama Pares y confirma si necesitas agendar antes de asistir.",
+    "error": null,
+    "correccion": "Distinguir tipo de canal de contacto concreto."
+  },
+  {
+    "n": 19,
+    "entrada": "¿Hay cupos?",
+    "esperado": "Avisa que no hay inventario actualizado.",
+    "observado": "El catálogo no confirma si hay cupos disponibles para Espacio Trama Pares. Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Trama Pares y confirma si necesitas agendar antes de asistir.",
+    "error": null,
+    "correccion": "No inferir cupos a partir de capacidad nominal."
+  },
+  {
+    "n": 20,
+    "entrada": "¿Hay que inscribirse?",
+    "esperado": "Explica que el requisito no figura.",
+    "observado": "El catálogo no confirma si necesitas inscribirte o agendar para Espacio Trama Pares. Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Trama Pares y confirma si necesitas agendar antes de asistir.",
+    "error": null,
+    "correccion": "Distinguir inscripción de canales."
+  },
+  {
+    "n": 21,
+    "entrada": "Cómo participar → Guardar próximo paso",
+    "esperado": "Canales, hora, próximo paso y duración en sesión.",
+    "observado": "Guardé tu próximo paso durante esta sesión. Puedes verlo en el panel lateral. <article class=\"nexo-card\"><p class=\"nexo-type\">Próximo paso guardado</p><h3>Espacio Trama Pares</h3><p class=\"nexo-note\">Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Trama Pares y confirma si necesitas agendar antes de asistir.</p></article>",
+    "error": null,
+    "correccion": "Comunicar la persistencia real del guardado."
+  },
+  {
+    "n": 22,
+    "entrada": "Repetir «guarda»",
+    "esperado": "Conserva un plan; confirma que ya estaba guardado.",
+    "observado": "Ese próximo paso ya está guardado durante esta sesión. Puedes verlo en el panel lateral.",
+    "error": null,
+    "correccion": "Guardado idempotente."
+  },
+  {
+    "n": 23,
+    "entrada": "¿Hay otra opción?",
+    "esperado": "Avanza de Lumen a Brújula.",
+    "observado": "También encontré esta opción en Gaia. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Brújula Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Gaia</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en otro distrito, Gaia.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 38.7 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 24,
+    "entrada": "¿Por qué me recomiendas esta?",
+    "esperado": "Criterios respaldados por D6.",
+    "observado": "Estos son los criterios que usé para mostrar Espacio Lumen Pares: • Está en el distrito que indicaste. • El horario publicado coincide en parte con tu disponibilidad. • Es un espacio de apoyo entre estudiantes. D6 · Mapa de servicios de Ciudad Aethera. D2 · 40.1 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.",
+    "error": null,
+    "correccion": "Recorrido de motivos conservado."
+  },
+  {
+    "n": 25,
+    "entrada": "¿Me explicas cómo hacer una derivada? → Sí",
+    "esperado": "Reconoce el límite y abre búsqueda de actividades.",
+    "observado": "¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
+    "error": null,
+    "correccion": "Recorrido de redirección conservado."
+  },
+  {
+    "n": 26,
+    "entrada": "Receta de pasta → No",
+    "esperado": "Declina y acepta la negativa.",
+    "observado": "De acuerdo. Si quieres retomar la búsqueda más adelante, puedes escribirme.",
+    "error": null,
+    "correccion": "Recorrido fuera de ámbito conservado."
+  },
+  {
+    "n": 27,
+    "entrada": "Sí en un chat vacío",
+    "esperado": "Aclara qué quiere buscar.",
+    "observado": "¿Buscas una actividad, un espacio para conocer gente o un recurso de apoyo universitario?",
+    "error": null,
+    "correccion": "No usar un «sí» sin antecedente."
+  },
+  {
+    "n": 28,
+    "entrada": "Solo domingos, perfil completo",
+    "esperado": "Sin espacios publicados; conserva preferencias.",
+    "observado": "No encontré espacios de pares compatibles en Nébula con domingo. Tampoco encontré coincidencias en los horarios publicados para otros distritos del catálogo. Podemos probar otro horario o revisar las fechas de actividades.",
+    "error": null,
+    "correccion": "Acotar la cobertura a D6."
+  },
+  {
+    "n": 29,
+    "entrada": "Solo domingos → Ver actividades",
+    "esperado": "Aclara que las fechas vigentes no coinciden con ese día.",
+    "observado": "Las fechas registradas para las actividades vigentes no coinciden con tus días indicados. Estas actividades figuran en el calendario del escenario al 23 nov 2026. El catálogo trae fechas. La hora exacta se confirma con la institución. <article class=\"nexo-event\"><strong>Semana de pausa y bienestar 4</strong><p>30 nov 2026 al 2 dic 2026 · Gaia · En el calendario del escenario</p></article> <article class=\"nexo-event\"><strong>Encuentro estudiantil 4-1</strong><p>23 oct 2026 · Nébula · Fecha pasada</p></article>",
+    "error": null,
+    "correccion": "Separar días del evento y horas de atención."
+  },
+  {
+    "n": 30,
+    "entrada": "Me interesa el bienestar, perfil completo",
+    "esperado": "Encuentra la actividad cuyo título menciona bienestar.",
+    "observado": "Estas actividades mencionan tu interés en el título. Estas actividades figuran en el calendario del escenario al 23 nov 2026. El catálogo trae fechas. La hora exacta se confirma con la institución. <article class=\"nexo-event\"><strong>Semana de pausa y bienestar 4</strong><p>30 nov 2026 al 2 dic 2026 · Gaia · En el calendario del escenario</p></article>",
+    "error": null,
+    "correccion": "Usar intereses con respaldo documental."
+  },
+  {
+    "n": 31,
+    "entrada": "¿Algo con mis intereses? → fútbol",
+    "esperado": "Pide el interés y señala que no hay una coincidencia documentada.",
+    "observado": "No encontré una coincidencia documentada para deporte. Puedes revisar las actividades generales. Estas actividades figuran en el calendario del escenario al 23 nov 2026. El catálogo trae fechas. La hora exacta se confirma con la institución. <article class=\"nexo-event\"><strong>Semana de pausa y bienestar 4</strong><p>30 nov 2026 al 2 dic 2026 · Gaia · En el calendario del escenario</p></article> <article class=\"nexo-event\"><strong>Encuentro estudiantil 4-1</strong><p>23 oct 2026 · Nébula · Fecha pasada</p></article>",
+    "error": null,
+    "correccion": "Conservar perfil y distinguir falta de evidencia."
+  },
+  {
+    "n": 32,
+    "entrada": "Me siento mal → Vector",
+    "esperado": "Orienta hacia apoyo humano e identifica la simulación y el límite clínico.",
+    "observado": "Siento que estés pasando por esto. En Vector figura este recurso de apoyo humano en el catálogo de demostración de Aethera. Puedes revisar sus canales y horario. La atención clínica corresponde a profesionales de salud. <article class=\"nexo-card\"><p class=\"nexo-type\">Orientación institucional</p><h3>Espacio Trama Orientación</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Vector</dd></div><div><dt>Horario</dt><dd>Lunes a viernes · 09:00 a 18:00</dd></div></dl></article>",
+    "error": null,
+    "correccion": "Explicitar el tipo y alcance del recurso."
+  },
+  {
+    "n": 33,
+    "entrada": "Frase explícita de peligro inmediato",
+    "esperado": "Emergencias reales y apoyo cercano; sin búsqueda en el catálogo.",
+    "observado": "Siento que estés pasando por esto. Si hay peligro inmediato o ya te hiciste daño, llama ahora a los servicios de emergencia de donde estés. Si puedes hacerlo con seguridad, avisa a una persona de confianza que pueda acompañarte. Los contactos de Aethera son simulados.",
+    "error": null,
+    "correccion": "Respuesta directa conservada."
+  },
+  {
+    "n": 34,
+    "entrada": "Calendario en el escenario del 23 de noviembre",
+    "esperado": "Diferencia fechas pasadas y la actividad vigente.",
+    "observado": "Estas actividades figuran en el calendario del escenario al 23 nov 2026. El catálogo trae fechas. La hora exacta se confirma con la institución. <article class=\"nexo-event\"><strong>Semana de pausa y bienestar 4</strong><p>30 nov 2026 al 2 dic 2026 · Gaia · En el calendario del escenario</p></article> <article class=\"nexo-event\"><strong>Encuentro estudiantil 4-1</strong><p>23 oct 2026 · Nébula · Fecha pasada</p></article>",
+    "error": null,
+    "correccion": "Fecha de simulación y avisos conservados."
+  },
+  {
+    "n": 35,
+    "entrada": "Reiniciar después de guardar",
+    "esperado": "Elimina tarjeta guardada y sesión del chat.",
+    "observado": "Chat vacío",
+    "error": null,
+    "correccion": "Recorrido conservado."
+  },
+  {
+    "n": 36,
+    "entrada": "Demo Conversacional con botones",
+    "esperado": "Distrito → institución → Lumen → Cómo participar.",
+    "observado": "Estos son los datos de atención que figuran en el catálogo. <article class=\"nexo-card\"><p class=\"nexo-type\">Cómo participar</p><h3>Espacio Lumen Pares</h3><dl class=\"nexo-facts\"><div><dt>Dónde</dt><dd>Distrito Nébula</dd></div><div><dt>Cuándo</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div><div><dt>Canales</dt><dd>Presencial y Teléfono</dd></div></dl><p class=\"nexo-note\"><strong>Tu próximo paso</strong><br>Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Lumen Pares y confirma si necesitas agendar antes de asistir.</p><p class=\"nexo-note\">El catálogo no especifica la dirección exacta ni el teléfono oficial.</p></article>",
+    "error": null,
+    "correccion": "Entrada de demostración conservada."
+  },
+  {
+    "n": 37,
+    "entrada": "Identificación real de pares y orientación",
+    "esperado": "Los objetos traen service_id canónico y se cruzan con D6.",
+    "observado": "D6 cruzado con 2 pares y 2 referencias; todos con service_id.",
+    "error": null,
+    "correccion": "Unificar clave y preservar alias id."
+  },
+  {
+    "n": 38,
+    "entrada": "Repetir búsqueda y preguntar motivo",
+    "esperado": "Una sola consulta al motor con la misma firma.",
+    "observado": "Consultas al motor: 1; el motivo sigue disponible.",
+    "error": null,
+    "correccion": "Reutilizar resultados de la sesión."
+  },
+  {
+    "n": 39,
+    "entrada": "Fallo de datos puntual → Volver a intentar",
+    "esperado": "Mensaje legible y recuperación con la misma consulta.",
+    "observado": "Empezaría por este espacio en Nébula. Su horario coincide con tu disponibilidad. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Lumen Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Nébula</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en el distrito que indicaste.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 40.1 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Capturar fallos después de interpretar y restaurar estado."
+  },
+  {
+    "n": 40,
+    "entrada": "Consulta abierta sin credenciales",
+    "esperado": "Pide aclaración local y no requiere API.",
+    "observado": "¿Buscas una actividad, un espacio para conocer gente o un recurso de apoyo universitario?",
+    "error": null,
+    "correccion": "Distinguir ambigüedad de consulta ajena."
+  },
+  {
+    "n": 41,
+    "entrada": "Gemini devuelve una intención válida (SDK simulado)",
+    "esperado": "Usa intención y registra versión devuelta.",
+    "observado": "Gemini · gemini-prueba · intención utilizada: social_connection. ¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
+    "error": null,
+    "correccion": "Trazabilidad por turno con modelo efectivo."
+  },
+  {
+    "n": 42,
+    "entrada": "Gemini falla con 503 (SDK simulado)",
+    "esperado": "Una llamada; recuperación por reglas y sin código visible.",
+    "observado": "Gemini · servicio no disponible · respuesta por reglas. ¿Buscas una actividad, un espacio para conocer gente o un recurso de apoyo universitario?",
+    "error": null,
+    "correccion": "Límite de tiempo, sin reintentos y ruta local."
+  },
+  {
+    "n": 43,
+    "entrada": "Gemini devuelve una etiqueta inválida (SDK simulado)",
+    "esperado": "Rechaza etiqueta y pide aclaración.",
+    "observado": "¿Buscas una actividad, un espacio para conocer gente o un recurso de apoyo universitario?",
+    "error": null,
+    "correccion": "Validar contrato antes de actuar."
+  },
+  {
+    "n": 44,
+    "entrada": "Horario inválido en catálogo",
+    "esperado": "Valida minutos y orden del intervalo.",
+    "observado": "Ambos horarios inválidos fueron rechazados.",
+    "error": null,
+    "correccion": "Distinguir horario desconocido de coincidencia."
+  },
+  {
+    "n": 45,
+    "entrada": "Demo Conversacional → distrito → institución → cómo participar → guardar",
+    "esperado": "Un intento de IA por turno y botones fieles a su acción.",
+    "observado": "Guardé este plan durante la sesión para que puedas retomarlo. Puedes verlo en el panel lateral. <article class=\"nexo-card\"><p class=\"nexo-type\">Próximo paso guardado</p><h3>Espacio Lumen Pares</h3><p class=\"nexo-note\">Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Lumen Pares y confirma si necesitas agendar antes de asistir.</p></article>",
+    "error": null,
+    "correccion": "Pasar todas las entradas conversacionales por el mismo flujo."
+  },
+  {
+    "n": 46,
+    "entrada": "Gemini propone apoyo emocional para una búsqueda explícita de pares",
+    "esperado": "Conserva la intención explícita y marca la propuesta como tal.",
+    "observado": "Te propongo partir por este espacio en Nébula. Su horario coincide con tu disponibilidad. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Lumen Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Nébula</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en el distrito que indicaste.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 40.1 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Aplicar validación local antes de desviar el flujo."
+  },
+  {
+    "n": 47,
+    "entrada": "Gemini devuelve otro objetivo tras una restricción negativa",
+    "esperado": "Hace valer la disponibilidad explícita.",
+    "observado": "Disponibilidad confirmada: ((5,), 0, 1080). Empezaría por este espacio en Nébula. Su horario coincide con tu disponibilidad. <article class=\"nexo-card\"><p class=\"nexo-type\">Apoyo entre pares</p><h3>Espacio Lumen Pares</h3><dl class=\"nexo-facts\"><div><dt>Distrito</dt><dd>Nébula</dd></div><div><dt>Horario</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div></dl><details class=\"nexo-card-details\"><summary>Por qué aparece esta opción</summary><ul><li>Está en el distrito que indicaste.</li><li>El horario publicado coincide en parte con tu disponibilidad.</li><li>Es un espacio de apoyo entre estudiantes.</li></ul><p class=\"nexo-note\">D6 · Mapa de servicios de Ciudad Aethera. D2 · 40.1 días de espera en promedio en el histórico del servicio. La espera actual debe confirmarse.</p></details></article>",
+    "error": null,
+    "correccion": "Mantener el cruce real de horarios."
+  },
+  {
+    "n": 48,
+    "entrada": "Respuesta JSON rota al pulsar Cómo participar",
+    "esperado": "Usa la tarjeta local en ese mismo turno.",
+    "observado": "Estos son los datos de atención que figuran en el catálogo. <article class=\"nexo-card\"><p class=\"nexo-type\">Cómo participar</p><h3>Espacio Lumen Pares</h3><dl class=\"nexo-facts\"><div><dt>Dónde</dt><dd>Distrito Nébula</dd></div><div><dt>Cuándo</dt><dd>Lunes a sábado · 12:00 a 20:00</dd></div><div><dt>Canales</dt><dd>Presencial y Teléfono</dd></div></dl><p class=\"nexo-note\"><strong>Tu próximo paso</strong><br>Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Lumen Pares y confirma si necesitas agendar antes de asistir.</p><p class=\"nexo-note\">El catálogo no especifica la dirección exacta ni el teléfono oficial.</p></article>",
+    "error": null,
+    "correccion": "Vincular la recuperación al recorrido normal."
+  },
+  {
+    "n": 49,
+    "entrada": "Dos fallos, nuevo demo y fin de pausa",
+    "esperado": "Usa reglas durante la pausa y vuelve a intentar después.",
+    "observado": "El horario publicado de Espacio Lumen Pares es Lunes a sábado · 12:00 a 20:00.",
+    "error": null,
+    "correccion": "Preservar el estado del proveedor al reiniciar el chat."
+  },
+  {
+    "n": 50,
+    "entrada": "Apoyo y emergencia en el chat, con clave configurada",
+    "esperado": "Respuestas de seguridad y orientación locales, sin llamada externa.",
+    "observado": "Siento que estés pasando por esto. Si hay peligro inmediato o ya te hiciste daño, llama ahora a los servicios de emergencia de donde estés. Si puedes hacerlo con seguridad, avisa a una persona de confianza que pueda acompañarte. Los contactos de Aethera son simulados.",
+    "error": null,
+    "correccion": "Proteger el flujo de apoyo humano y conservar el acceso."
+  },
+  {
+    "n": 51,
+    "entrada": "Consulta de seguimiento con nombre distinto del seleccionado",
+    "esperado": "Responde por Trama Pares y deja de apuntar a Lumen.",
+    "observado": "El catálogo no confirma el número oficial para Espacio Trama Pares. Consulta a tu institución por el punto de atención o el teléfono oficial de Espacio Trama Pares y confirma si necesitas agendar antes de asistir.",
+    "error": null,
+    "correccion": "Comprobar en D6 el servicio mencionado por el estudiante."
+  },
+  {
+    "n": 52,
+    "entrada": "Confirmación coloquial a una invitación pendiente",
+    "esperado": "Interpreta la confirmación y retoma el calendario.",
+    "observado": "¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
+    "error": null,
+    "correccion": "Usar intención contextual sin perder la pregunta pendiente."
+  }
+]

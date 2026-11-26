@@ -1,8 +1,18 @@
-
-.streamlit/
-__pycache__/
-*.py[cod]
-.DS_Store
-.venv/
+.streamlit/secrets.toml
+.streamlit/credentials.toml
 .env
 .env.*
+!.env.example
+__pycache__/
+*.pyc
+.venv/
+.venv*/
+.DS_Store
+
+# Resultados locales de validación y archivos de credenciales alternativos
+resultados-locales/
+*.pem
+*.key
+secrets.toml
+credentials.json
+.venv-*/

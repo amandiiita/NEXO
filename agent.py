@@ -1,261 +1,61 @@
-from nexo_model import classify, compose_intro
-from tools import (
-    search_calendar_events,
-    search_services,
-    enrich_services_with_history
-)
-from ranking import (
-    calculate_event_score,
-    calculate_service_score
-)
-
-RISK_KEYWORDS = [
-    "me siento muy mal", "me siento mal", "crisis", "no puedo más", "no puedo mas",
-    "angustia", "ansiedad", "deprimid", "llorar", "necesito ayuda", "hablar con alguien",
-    "colaps", "solo y mal", "salud mental", "terapia", "orientación psicológica"
-]
-
-DISTRICT_ALIASES = {
-    "gaia": "DIST_GAIA", "dist_gaia": "DIST_GAIA",
-    "nebula": "DIST_NEBULA", "nébula": "DIST_NEBULA", "dist_nebula": "DIST_NEBULA",
-    "vector": "DIST_VECTOR", "dist_vector": "DIST_VECTOR",
-    "horizon": "DIST_HORIZON", "horizonte": "DIST_HORIZON", "dist_horizon": "DIST_HORIZON",
-    "quantum": "DIST_QUANTUM", "dist_quantum": "DIST_QUANTUM",
-}
-
-INSTITUTION_ALIASES = {
-    "nova": "UNI_NOVA_AETHER", "nova aether": "UNI_NOVA_AETHER", "uni_nova_aether": "UNI_NOVA_AETHER",
-    "nexus": "INST_NEXUS", "inst_nexus": "INST_NEXUS",
-    "horizonte": "UNI_HORIZONTE", "uni_horizonte": "UNI_HORIZONTE",
-}
+"""Herramientas institucionales. No se interpretan contactos ni cupos a partir de D2."""
+from entorno import comprobar
+comprobar()
+from ranking import calculate_event_score, calculate_service_score
+from tools import search_calendar_events, search_services, enrich_services_with_history
 
 
-def extract_context_from_text(text, current_context, api_key=None):
-    t = text.lower()
-    updated = current_context.copy()
-
-    # 1. Reglas deterministas ultrarrápidas
-    t_clean = t.strip().replace(".", "").replace(",", "")
-    
-    # El saludo lo atrapamos aquí para que sea instantáneo
-    if t_clean in ["hola", "holi", "buenos días", "buenos dias", "buenas tardes", "buenas noches", "buenas", "qué tal", "que tal", "hola nexo", "hello", "holis"]:
-        updated["goal"] = "greeting"
-        return updated
-        
-    if any(k in t for k in RISK_KEYWORDS):
-        updated["goal"] = "human_support"
-
-    if any(k in t for k in ["18:00", "18 hrs", "después de las 18", "tarde", "trabajo", "trabajar", "25 horas", "20 horas", "poco tiempo", "sábado", "sabado", "fin de semana", "sí", "si"]):
-        updated["after_18h_or_weekend"] = True
-        updated["availability_confirmed"] = True
-    elif any(k in t for k in ["cualquier horario", "tengo tiempo", "no trabajo", "mañana", "todo el día"]):
-        updated["after_18h_or_weekend"] = False
-        updated["availability_confirmed"] = True
-
-    for alias, code in sorted(DISTRICT_ALIASES.items(), key=lambda x: -len(x[0])):
-        if alias in t:
-            if alias == "horizonte" and ("uni" in t or "estud" in t):
-                continue
-            updated["district_id"] = code
-            break
-
-    for alias, code in sorted(INSTITUTION_ALIASES.items(), key=lambda x: -len(x[0])):
-        if alias in t:
-            updated["institution_id"] = code
-            break
-
-    # La aplicación valida los datos temporales por separado.
-    if api_key and api_key.strip():
-        intent, model, _ = classify(text, api_key.strip())
-        if intent in ("human_support", "out_of_context", "social_connection", "activities"):
-            updated["goal"] = "social_connection" if intent == "activities" else intent
-            updated["llm_interpreted_need"] = f"Intención {intent} clasificada por {model}"
-
-    # Fallback de seguridad por si falla el internet o la API
-    if not updated.get("goal"):
-        updated["goal"] = "social_connection"
-
-    return updated
+def calendario_ordenado(calendar, context):
+    events = search_calendar_events(calendar, context["institution_id"], context["district_id"])
+    exams = calendar[(calendar.period_id == "PER_2026_4") & (calendar.event_type == "evaluation_week")]
+    records = []
+    for row in events.to_dict("records"):
+        score, reasons = calculate_event_score(row, context, exams)
+        records.append({**row, "id": row["calendar_event_id"], "score": score, "reasons": reasons})
+    return sorted(records, key=lambda row: -row["score"])
 
 
-def generate_grounded_explanation(student_context, top_services, top_events, api_key=None):
-    """Texto verificable con acompañamiento opcional; nunca confiar datos al LLM."""
-    default_msg = (
-        f"Encontré estas opciones en el catálogo de Aethera para tu búsqueda. "
-        f"La disponibilidad publicada, los contactos y las fechas se consultan en D6/D7; "
-        f"una fecha del calendario no garantiza cupos ni confirma la hora exacta."
-    )
-    if not api_key or not api_key.strip():
-        return default_msg
-    intro, _, status = compose_intro(default_msg, api_key)
-    return intro + " " + default_msg if status == "used" else default_msg
+def espacios_ordenados(services, history, context, apoyo):
+    if apoyo:
+        eligible = services[services.district_id.eq(context["district_id"]) &
+                            services.service_type.isin(["counseling", "peer_support"])]
+    else:
+        eligible = search_services(services, district_id=context["district_id"], service_type="peer_support")
+        eligible = eligible[eligible.district_id.eq(context["district_id"])]
+    records = enrich_services_with_history(eligible, history).to_dict("records")
+    for row in records:
+        row["id"] = row["service_id"]
+        if not apoyo:
+            row["score"], row["reasons"] = calculate_service_score(row, context)
+    if apoyo:
+        return sorted(records, key=lambda row: row["service_type"] != "counseling")
+    return sorted(records, key=lambda row: -row["score"])
 
 
 def run_nexo(calendar, services, support_history, student_context, api_key=None):
-    goal = student_context.get("goal")
-    
-    # --- CASO 0: GUARDRAILS ESTRUCTURALES ---
-    if goal == "greeting":
-        student_context["goal"] = None # Reseteamos para el próximo turno
-        return {
-            "status": "greeting",
-            "agent_message": "Hola, soy NEXO, tu asistente de integración. ¿En qué te ayudo?",
-            "context": student_context
-        }
-        
-    if goal == "out_of_context":
-        student_context["goal"] = None # Reseteamos para el próximo turno
-        return {
-            "status": "out_of_context",
-            "agent_message": "Lo siento, solo puedo ayudarte con tu integración universitaria y servicios del campus.",
-            "context": student_context
-        }
+    """La búsqueda es de solo lectura. El cliente oficial invoca solo la colección necesaria."""
+    ctx = student_context
+    goal = ctx.get("goal")
+    if goal in ("greeting", "out_of_context"):
+        return {"status":goal, "context":ctx, "agent_message":"Soy NEXO, agente de integración universitaria."}
+    apoyo = goal == "human_support"
+    required = ("district_id",) if apoyo else ("availability_confirmed", "district_id", "institution_id")
+    for field in required:
+        if not ctx.get(field):
+            return {"status":"needs_info", "missing_field":"availability" if field == "availability_confirmed" else field,
+                    "context":ctx, "agent_message":"Falta un dato para buscar opciones compatibles."}
+    if apoyo:
+        return {"status":"referral_ready", "context":ctx, "referrals":espacios_ordenados(services, support_history, ctx, True),
+                "tools_used":["filtrar_orientacion(D6)", "agregar_historial(D2)"], "agent_message":"Orientación institucional."}
+    kind = ctx.get("consulta", "ambas")
+    used = []
+    events, peers = [], []
+    if kind in ("events", "ambas"):
+        events = calendario_ordenado(calendar, ctx)
+        used += ["search_calendar_events(D7)", "calculate_event_score(D7)"]
+    if kind in ("peers", "ambas"):
+        peers = espacios_ordenados(services, support_history, ctx, False)
+        used += ["search_services(D6)", "enrich_services_with_history(D2)", "calculate_service_score(D6)"]
+    return {"status":"recommendations_ready", "context":ctx, "tools_used":used, "events":events,
+            "peer_services":peers, "agent_message":"Resultados del catálogo ordenados según tus preferencias."}
 
-    goal = goal or "social_connection"
-    district_id = student_context.get("district_id")
-    institution_id = student_context.get("institution_id")
-
-    # CASO 2: DERIVACIÓN HUMANA (D6 + D2)
-    if goal == "human_support":
-        if not district_id:
-            return {
-                "status": "needs_info",
-                "missing_field": "district_id",
-                "agent_message": (
-                    "No puedo evaluar ni diagnosticar cómo te sientes, pero sí puedo ayudarte "
-                    "a encontrar apoyo humano disponible. ¿En qué distrito te encuentras "
-                    "(Nebula, Gaia, Vector, Horizon o Quantum)?"
-                ),
-                "context": student_context
-            }
-
-        support_spaces = services[
-            (services["district_id"] == district_id)
-            & (services["service_type"].isin(["counseling", "peer_support"]))
-        ].copy()
-        support_spaces = enrich_services_with_history(support_spaces, support_history)
-
-        referrals = []
-        for _, row in support_spaces.iterrows():
-            referrals.append({
-                "service_id": row["service_id"],
-                "id": row["service_id"],
-                "name": row["name"],
-                "service_type": row["service_type"],
-                "district_id": row["district_id"],
-                "schedule": row["schedule"],
-                "channels": row["channels"],
-                "average_wait_days": row["average_wait_days"],
-                "median_wait_days": row["median_wait_days"],
-                "attendance_rate": row["attendance_rate"],
-                "referral_information": row["referral_information"]
-            })
-
-        return {
-            "status": "referral_ready",
-            "agent_message": (
-                "No puedo evaluar ni diagnosticar tu situación. Sí puedo conectarte directamente "
-                f"con los servicios de orientación profesional y apoyo entre pares disponibles en {district_id}:"
-            ),
-            "tools_used": ["search_services(D6)", "enrich_services_with_history(D2)"],
-            "referrals": referrals,
-            "context": student_context
-        }
-
-    # CASO 1: PREGUNTAR LO QUE FALTA
-    if not student_context.get("availability_confirmed"):
-        return {
-            "status": "needs_info",
-            "missing_field": "availability",
-            "agent_message": (
-                "Entiendo. Para priorizar opciones compatibles con tu disponibilidad, "
-                "¿generalmente puedes participar después de las 18:00 o los fines de semana?"
-            ),
-            "context": student_context
-        }
-
-    if not district_id:
-        return {
-            "status": "needs_info",
-            "missing_field": "district_id",
-            "agent_message": (
-                "Perfecto. Para buscar opciones cercanas a ti, ¿en qué distrito te mueves "
-                "principalmente? (Nebula, Gaia, Vector, Horizon o Quantum)"
-            ),
-            "context": student_context
-        }
-
-    if not institution_id:
-        return {
-            "status": "needs_info",
-            "missing_field": "institution_id",
-            "agent_message": (
-                "¡Gracias! Por último, ¿en qué institución estudias? "
-                "(Nova Aether, Instituto Nexus o Universidad Horizonte)"
-            ),
-            "context": student_context
-        }
-
-    # EJECUTAR HERRAMIENTAS Y RANKING (D7 + D6 + D2)
-    events = search_calendar_events(calendar, institution_id, district_id)
-    evaluation_periods = calendar[
-        (calendar["period_id"] == "PER_2026_4")
-        & (calendar["event_type"] == "evaluation_week")
-    ].copy()
-
-    ranked_events = []
-    for _, event in events.iterrows():
-        score, reasons = calculate_event_score(event, student_context, evaluation_periods)
-        ranked_events.append({
-            "id": event["calendar_event_id"],
-            "title": event["title"],
-            "event_type": event["event_type"],
-            "start_date": event["start_date"],
-            "end_date": event["end_date"],
-            "institution_id": event["institution_id"],
-            "district_id": event["district_id"],
-            "score": score,
-            "reasons": reasons
-        })
-
-    peer_services = search_services(services, district_id=district_id, service_type="peer_support")
-    peer_services = enrich_services_with_history(peer_services, support_history)
-
-    ranked_services = []
-    for _, service in peer_services.iterrows():
-        score, reasons = calculate_service_score(service, student_context)
-        ranked_services.append({
-            "id": service["service_id"],
-            "service_id": service["service_id"],
-            "name": service["name"],
-            "service_type": service["service_type"],
-            "district_id": service["district_id"],
-            "schedule": service["schedule"],
-            "channels": service["channels"],
-            "capacity": service["capacity"],
-            "average_wait_days": service["average_wait_days"],
-            "attendance_rate": service["attendance_rate"],
-            "score": score,
-            "reasons": reasons
-        })
-
-    ranked_events = sorted(ranked_events, key=lambda x: x["score"], reverse=True)[:3]
-    ranked_services = sorted(ranked_services, key=lambda x: x["score"], reverse=True)[:2]
-
-    explanation_msg = generate_grounded_explanation(
-        student_context, ranked_services, ranked_events, api_key
-    )
-
-    return {
-        "status": "recommendations_ready",
-        "agent_message": explanation_msg,
-        "tools_used": [
-            "search_calendar_events(D7)",
-            "search_services(D6)",
-            "enrich_services_with_history(D2)",
-            "calculate_event_score & calculate_service_score"
-        ],
-        "events": ranked_events,
-        "peer_services": ranked_services,
-        "context": student_context
-    }

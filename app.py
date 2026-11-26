@@ -1,6 +1,12 @@
 """Interfaz de NEXO para ejecutar junto al agente y los datos del proyecto."""
 
+from entorno import comprobar
+comprobar()
+
+from contextvars import ContextVar
+from copy import deepcopy
 from datetime import date
+from difflib import SequenceMatcher
 from html import escape
 import logging
 from math import isfinite
@@ -8,12 +14,14 @@ from numbers import Real
 import os
 import re
 import unicodedata
-import time
 
 import streamlit as st
 from agent import run_nexo
 from data_loader import load_all_data
-from nexo_model import DEFAULT_MODEL, interpret_turn, validate_turn
+import nexo_model as contrato
+from proveedores import Turno, configuracion, MOTIVOS
+
+TURNO = ContextVar("turno_nexo", default=None)
 
 st.set_page_config(page_title="NEXO", page_icon="N", layout="wide")
 
@@ -188,52 +196,13 @@ LOG = logging.getLogger("nexo")
 SUPPORT_PATTERN = re.compile(
     r"\b(?:me siento (?:muy )?mal|crisis|angustia|ansiedad|deprimid[oa]|hablar con alguien|"
     r"salud mental|orientacion psicologica|apoyo emocional|apoyo humano|no puedo mas|terapia)\b")
-AI_PAUSE_SECONDS = 45
-AI_FAILURE_REASONS = {
-    "timeout": "se agotó el tiempo de espera",
-    "quota": "límite de solicitudes",
-    "credentials": "credencial rechazada",
-    "model_missing": "modelo fuera de alcance",
-    "sdk_missing": "componente de Gemini ausente",
-    "invalid_response": "respuesta fuera del formato esperado",
-    "busy": "conexión ocupada",
-    "unavailable": "servicio no disponible",
-}
-# El modelo elige un estilo. Las frases admisibles conservan todos los datos
-# y las restricciones de la respuesta local.
-RESPONSE_VARIANTS = {
-    "¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.": (
-        "¿Qué día o a qué hora te acomoda participar?",
-        "Para encontrar algo que puedas aprovechar, dime qué día u horario te sirve."),
-    "¿En qué distrito te mueves normalmente?": (
-        "¿Por qué distrito te mueves normalmente?", "¿En qué distrito quieres que busque primero?"),
-    "¿En qué institución estudias?": (
-        "¿Dónde estudias?", "Dime en qué institución estudias para completar la búsqueda."),
-    "Empezaría por este espacio en ": (
-        "Te propongo partir por este espacio en ", "La primera opción de la búsqueda está en "),
-    "También encontré esta opción en ": (
-        "Otra opción que puedes revisar está en ", "Para comparar, tienes esta otra opción en "),
-    "Podemos retomar este espacio.": (
-        "Volvamos a este espacio.", "Esta es la opción de pares que ya habíamos encontrado."),
-    "Estas actividades figuran en el calendario del escenario al ": (
-        "Estas son las actividades del calendario simulado al ",
-        "Puedes revisar estas actividades registradas en el calendario simulado al "),
-    "El horario publicado de ": ("Según el catálogo, el horario de ", "El horario que puedes usar como referencia para "),
-    "Estos son los criterios que usé para mostrar ": ("Te cuento por qué te mostré ", "Estos criterios explican por qué te mostré "),
-    "Estos son los datos de atención que figuran en el catálogo.": (
-        "Así figura la atención de este espacio en el catálogo.", "Empieza por estos datos de atención del catálogo."),
-    "Puedes confirmar los detalles con quien organiza la actividad.": (
-        "Puedes pedir más detalles a quien organiza la actividad.", "Para dar el siguiente paso, consulta con quien organiza la actividad."),
-    "Aquí está la información registrada en el calendario de Aethera.": (
-        "Esto es lo que figura en el calendario de Aethera.", "Revisa los datos publicados en el calendario de Aethera."),
-    "Guardé tu próximo paso durante esta sesión.": (
-        "Tu próximo paso quedó guardado durante esta sesión.", "Guardé este plan durante la sesión para que puedas retomarlo."),
-    "No encontré espacios de pares compatibles en ": (
-        "Con ese filtro, no encontré espacios de pares compatibles en ",
-        "El horario indicado dejó sin coincidencias de pares la búsqueda en "),
-    "Esa consulta está fuera del ámbito de NEXO.": (
-        "Esa consulta queda fuera de lo que cubre NEXO.", "Mi ayuda se limita a la integración universitaria."),
-}
+CAMPOS_FICHA = {"ubicacion":"location", "horario":"schedule", "telefono":"Teléfono", "correo":"Correo",
+                "enlace":"Enlace", "cupos":"Cupos", "inscripcion":"Inscripción"}
+RUTA = {"buscar_pares":"social_connection", "buscar_actividades":"activities", "apoyo_humano":"human_support",
+        "cambiar_horario":"change_time", "cambiar_distrito":"change_area", "fuera_ambito":"out_of_context",
+        "fuera_academico":"out_of_context", "aceptar":"yes", "rechazar":"no", "saludar":"greeting",
+        "agradecer":"thanks", "explicar":"why", "participar":"how", "otra_opcion":"other", "guardar":"save"}
+SOCIAL_IMPLICITO = re.compile(r"\b(?:no (?:conozco|cacho) a nadie|sentirme parte|encajar|hacer (?:panas|patas)|conocer (?:gente|companeros)|hacer amig\w*)\b")
 
 
 @st.cache_data(show_spinner=False)
@@ -272,10 +241,9 @@ def new_conversation():
         "interpretation": "Por iniciar",
         "sources": (),
         "result_key": None,
-        "ai_failures": previous.get("ai_failures", 0),
-        "ai_backoff_until": previous.get("ai_backoff_until", 0.0),
-        "ai_style": None,
-        "ai_output": "Redacción verificada de NEXO",
+        "circuitos": previous.get("circuitos", {}),
+        "traza": {}, "memoria": [], "interest_publico": False,
+        "ai_output": "Sin respuesta todavía",
     }
 
 
@@ -396,6 +364,10 @@ def ask_time_confirmation(text):
     work_range = re.search(r"\bde (?:las )?" + HOUR + r"\s*(?:a|-)\s*(?:las )?" + HOUR, work_text)
     work_end = re.search(r"\bhasta (?:las )?" + HOUR, work_text)
     if work_range or work_end:
+        state["result"] = state["result_key"] = state["selected"] = None
+        state["sources"] = ()
+        state["availability"] = state["time_label"] = None
+        state["context"]["availability_confirmed"] = state["context"]["after_18h_or_weekend"] = False
         minute = minutes(work_range[3], work_range[4] or 0) if work_range else minutes(work_end[1], work_end[2] or 0)
         label = f"Después de las {clock(minute)}"
         state["time_choices"] = ((label, (ALL_DAYS, minute, 1440)),)
@@ -405,6 +377,11 @@ def ask_time_confirmation(text):
 
     match = re.search(HOUR_WORD, text)
     if not match:
+        if work and re.search(r"\b(?:salgo|termino|despues de|a partir de)\b", work_text) and re.search(HOUR, work_text):
+            state["availability"] = state["time_label"] = None
+            state["context"]["availability_confirmed"] = state["context"]["after_18h_or_weekend"] = False
+            ask("availability")
+            return None
         if work and re.search(r"\b(?:lunes|martes|miercoles|jueves|viernes|sabados?|domingos?|durante el dia|por la manana|por la tarde)\b", work_text):
             state["availability"] = state["time_label"] = None
             state["context"]["availability_confirmed"] = False
@@ -521,9 +498,11 @@ def describe(kind, record, match_schedule=False, source_record=None):
     if kind == "event":
         first, last = date_text(record["start_date"]), date_text(record["end_date"])
         return {
+            "record_id": record.get("id") or record.get("calendar_event_id"),
             "kind": kind, "title": record["title"], "type": "Actividad del calendario", "district": district,
             "when": first if first == last else f"{first} al {last}", "end_date": record["end_date"],
             "start_date": record["start_date"], "event_type": record["event_type"],
+            "district_id":record["district_id"], "institution_id":record["institution_id"],
             "organizer": institution_name(record["institution_id"]), "reasons": record.get("reasons", []),
             "source": "D7 · Calendario académico de Ciudad Aethera.",
         }
@@ -556,6 +535,7 @@ def describe(kind, record, match_schedule=False, source_record=None):
                 access[label] = value.strip()
                 break
     return {
+        "record_id": record.get("service_id") or record.get("id"),
         "kind": kind, "title": record["name"],
         "type": "Apoyo entre pares" if record["service_type"] == "peer_support" else "Orientación institucional",
         "district": district, "when": schedule[3] if schedule else "Horario por confirmar",
@@ -569,69 +549,64 @@ def choice(label, action, value=None):
     return label, action, value
 
 
-def ai_result(status):
-    """Una caída de red, una respuesta inválida o un SDK ausente jamás bloquean el chat."""
-    state = st.session_state.nexo
-    if status == "used":
-        state["ai_failures"] = 0
-        state["ai_backoff_until"] = 0.0
-    elif status not in ("no_key", "skipped"):
-        state["ai_failures"] += 1
-        if state["ai_failures"] >= 2 or status in ("quota", "credentials", "sdk_missing", "model_missing"):
-            state["ai_backoff_until"] = time.monotonic() + AI_PAUSE_SECONDS
+def anotar(nombre, *fuentes):
+    turno = TURNO.get()
+    if turno:
+        turno.herramienta(nombre, *fuentes)
+
+
+def origen(item):
+    return ("D7",) if item["kind"] == "event" else ("D6",)
 
 
 def begin_ai_turn(text, *, action=None, local_reason=None):
     state = st.session_state.nexo
-    state["ai_style"] = None
-    state["ai_output"] = "Redacción verificada de NEXO"
-    state["interpretation"] = local_reason or ("Selección del usuario" if action else "Reglas de NEXO")
+    turn = TURNO.get()
+    if not turn:
+        return None
     if local_reason:
+        turn.local = local_reason
         return None
-    key = setting("GEMINI_API_KEY")
-    if not key:
+    turn.privado = contrato.privado(text)
+    if action and action != "demo":
         return None
-    if time.monotonic() < state["ai_backoff_until"]:
-        state["interpretation"] = "Gemini en pausa automática · respuesta por reglas"
-        return None
-    model = setting("NEXO_GEMINI_MODEL", DEFAULT_MODEL)
-    pending = ("invitacion" if state["scope_pending"] else "horario" if state["time_choices"] else
-               "interes" if state["interest_pending"] else None)
-    try:
-        plan, version, status = interpret_turn(
-            text, key, model, selected_title=state["selected"]["title"] if state["selected"] else None,
-            waiting=state["waiting"], context=state["context"], action=action, pending=pending,
-        )
-        if status == "used":
-            plan = validate_turn(plan)
-            if plan is None:
-                status = "invalid_response"
-    except Exception:
-        plan, version, status = None, None, "unavailable"
-    if status != "used" and status not in AI_FAILURE_REASONS:
-        status = "unavailable"
-    ai_result(status)
-    if status != "used":
-        state["interpretation"] = f"Gemini · {AI_FAILURE_REASONS[status]} · respuesta por reglas"
-        return None
-    state["ai_style"] = plan["style"]
-    if action:
-        state["interpretation"] = f"Gemini · {version or model} · estilo para la acción seleccionada"
-    else:
-        state["interpretation"] = f"Gemini · {version or model} · intención propuesta: {plan['intent']}"
-    return plan
+    memory = contrato.contexto(state)
+    history = state["messages"][:-1][-6:]
+    safe_history = []
+    for message in history:
+        content = message["content"]
+        if contrato.privado(content) or SUPPORT_PATTERN.search(normalize(content)) or "emergencia" in normalize(content):
+            safe_history.clear()
+            continue
+        safe_history.append({"rol":message["role"],"texto":contrato.minimizar(content)[:250]})
+    payload = {"dialogo_reciente":safe_history, "mensaje": contrato.minimizar(text), "memoria": memory}
+    return turn.usar("plan", contrato.INSTRUCCION, payload, contrato.PLAN,
+                     lambda value: contrato.validar_plan(value, text, memory))
+
+
+def redactar(state, text):
+    turn = TURNO.get()
+    message = state["messages"][-1]
+    # Una selección explícita solo requiere redacción. Un plan fallido ya agotó las opciones disponibles.
+    if "respuesta" in turn.autores or turn.local or not turn.servicios or ("plan" not in turn.autores and any(x["fase"] == "plan" for x in turn.intentos)):
+        return
+    evidence = contrato.material(message, state)
+    # Los intereses arbitrarios se conservan en sesión. Su turno de respuesta queda en local.
+    if state["interest"] and not state.get("interest_publico"):
+        turn.privado = True
+    entry = {"memoria":contrato.contexto(state), "consulta":contrato.minimizar(text), **evidence}
+    result = turn.usar("respuesta", contrato.PERSONA, entry, contrato.RESPUESTA,
+                      lambda value: contrato.ensamblar(value, evidence))
+    if result:
+        message["content"] = result["texto"]
+        turn.autores["respuesta"]["redaccion"] = result["redaccion"]
 
 
 def reply(text, *, card=None, kind=None, options=(), actions=(), hint=None, step=None):
     state = st.session_state.nexo
-    style = state["ai_style"]
-    if style in ("cercano", "orientador") and state["context"]["goal"] != "human_support":
-        index = 1 if style == "orientador" else 0
-        for start, alternatives in RESPONSE_VARIANTS.items():
-            if text.startswith(start):
-                text = alternatives[index] + text[len(start):]
-                state["ai_output"] = f"Variante {style} seleccionada por Gemini · datos verificados por NEXO"
-                break
+    # La respuesta se compone una sola vez, después de ejecutar la herramienta.
+
+
     st.session_state.nexo["messages"].append({
         "role": "assistant", "content": text, "card": card, "kind": kind, "options": options,
         "actions": actions, "hint": hint, "step": step,
@@ -640,6 +615,9 @@ def reply(text, *, card=None, kind=None, options=(), actions=(), hint=None, step
 
 def ask(field):
     state = st.session_state.nexo
+    anotar("solicitar_" + field)
+    state["result"] = state["result_key"] = state["selected"] = None
+    state["sources"] = ()
     state["waiting"] = field
     if field == "availability":
         reply("¿Cuándo puedes participar? Puedes decirme el día o el horario que te acomoda.",
@@ -679,7 +657,7 @@ def item_actions(item):
     if alternative() and item["kind"] != "event":
         label = "Ver otro recurso" if item["kind"] == "support" else "Ver otra opción"
         actions.append(choice(label, "other"))
-    if result.get("events"):
+    if state["context"]["goal"] != "human_support":
         label = "Volver a actividades" if item["kind"] == "event" else "Ver actividades"
         actions.append(choice(label, "events"))
     if state["context"]["goal"] != "human_support":
@@ -688,6 +666,7 @@ def item_actions(item):
 
 
 def show_item(item, text):
+    anotar("mostrar_ficha", *origen(item))
     st.session_state.nexo["selected"] = item
     reply(text, card=item, actions=item_actions(item))
 
@@ -696,7 +675,7 @@ def resolve():
     state = st.session_state.nexo
     context = state["context"]
     support = context.get("goal") == "human_support"
-    signature = (context["goal"], context["district_id"], context["institution_id"], state["availability"])
+    signature = (context["goal"], context["district_id"], context["institution_id"], state["availability"], state["search_kind"])
     if state["result_key"] != signature:
         state["result"] = state["selected"] = None
         state["sources"] = ()
@@ -711,14 +690,16 @@ def resolve():
         calendar, support_history, services = catalog()
         eligible = services
         unknown_schedules = False
-        if not support:
+        if not support and state["search_kind"] != "events":
             peer_rows = services["service_type"].eq("peer_support")
-            unknown_schedules = any(read_schedule(raw) is None for raw in services.loc[peer_rows, "schedule"])
+            unknown_schedules = any(read_schedule(raw) is None for raw in services.loc[peer_rows & services.district_id.eq(context["district_id"]), "schedule"])
             compatible = services["schedule"].apply(lambda raw: is_compatible({"schedule": raw}, state["availability"]))
             eligible = services[~peer_rows | compatible]
-        result = run_nexo(calendar, eligible, support_history, {**context, "schedule_filtered": not support})
+        result = run_nexo(calendar, eligible, support_history, {**context, "schedule_filtered": not support, "consulta": state["search_kind"]})
         by_service = {record["service_id"]: record for record in services.to_dict("records")}
         state["sources"] = tuple(result.get("tools_used", ()))
+        for tool in state["sources"]:
+            anotar(tool.split("(")[0], *re.findall(r"D[267]", tool))
 
         def service_card(kind, record):
             service_id = record.get("service_id") or record.get("id")
@@ -734,6 +715,9 @@ def resolve():
                 "unknown_schedules": unknown_schedules,
             }
         state["result_key"] = signature
+    else:
+        for tool in state["sources"]:
+            anotar("recuperar_busqueda_en_sesion", *re.findall(r"D[267]", tool))
     if support:
         items = state["result"]["referrals"]
         if items:
@@ -744,57 +728,52 @@ def resolve():
                      "a bienestar estudiantil de tu institución o revisar otro distrito.",
                      actions=[choice("Buscar en otro distrito", "change_area")])
     peers = state["result"]["peers"]
-    events = state["result"]["events"]
     if state["search_kind"] == "events":
         return show_events()
     if not peers:
         actions = [choice("Probar otro horario", "change_time"), choice("Buscar en otro distrito", "change_area")]
-        if events:
-            actions.append(choice("Ver actividades", "events"))
+        actions.append(choice("Ver actividades", "events"))
         district = district_name(context["district_id"])
         coverage = "Algunos servicios no tienen un horario que pueda verificar." if state["result"]["unknown_schedules"] else (
-            "Tampoco encontré coincidencias en los horarios publicados para otros distritos del catálogo.")
+            "Ningún horario publicado en ese distrito coincide con tu disponibilidad.")
         return reply(f"No encontré espacios de pares compatibles en {district} con {state['time_label'].lower()}. "
                      f"{coverage} Podemos probar otro horario o revisar las fechas de actividades.",
                      actions=actions)
     first = peers[0]
-    if first["district"] == district_name(context["district_id"]):
-        return show_item(first, f"Empezaría por este espacio en {first['district']}. Su horario coincide con tu disponibilidad.")
-    district = district_name(context["district_id"])
-    return reply(f"No encontré espacios de pares compatibles en {district} con ese horario. "
-                 f"Encontré una opción en {first['district']}. ¿Qué prefieres?",
-                 actions=[choice("Ver opción en " + first["district"], "peer"),
-                          choice("Probar otro horario", "change_time"),
-                          choice("Buscar en otro distrito", "change_area")])
+    note = " D6 no detalla los intereses de cada espacio de pares." if state["interest"] else ""
+    return show_item(first, f"Empezaría por este espacio en {first['district']}. Su horario coincide con tu disponibilidad." + note)
 
 
-def show_events():
-    result = st.session_state.nexo["result"] or {}
-    items = result.get("events", [])
-    actions = [choice("Volver a espacios", "peer")] if result.get("peers") else [
-        choice("Buscar en otro distrito", "change_area"), choice("Probar otro horario", "change_time")]
+def show_events(ampliado=False):
+    state = st.session_state.nexo
+    if not state["result_key"] or state["result_key"][-1] != "events" or state["result"] is None:
+        state["search_kind"] = "events"
+        return resolve()
+    anotar("filtrar_fechas_e_intereses", "D7")
+    items = state["result"].get("events", [])
+    actions = [choice("Volver a espacios", "peer"), choice("Buscar en otro distrito", "change_area"),
+               choice("Probar otro horario", "change_time")]
     if not items:
-        return reply("El calendario no trae actividades para tu institución o distrito. Podemos ampliar la búsqueda.", actions=actions)
-    interest_note = ""
-    interest = st.session_state.nexo["interest"]
-    if interest:
-        pattern = INTERESTS.get(interest, r"\b" + re.escape(normalize(interest)) + r"\b")
-        matches = [item for item in items if re.search(pattern, normalize(item["title"]))]
-        if matches:
-            items = matches
-            interest_note = "Estas actividades mencionan tu interés en el título. "
-        else:
-            interest_note = f"No encontré una coincidencia documentada para {interest}. Puedes revisar las actividades generales. "
-    items = sorted(items, key=lambda item: (is_past(item), not event_day_overlap(item)))
-    day_note = (
-        "Las fechas registradas para las actividades vigentes no coinciden con tus días indicados. "
-        if any(not is_past(item) for item in items)
-        and not any(not is_past(item) and event_day_overlap(item) for item in items)
-        else ""
-    )
-    reply(interest_note + day_note + f"Estas actividades figuran en el calendario del escenario al {date_text(SCENARIO_DATE)}. "
-          "El catálogo trae fechas. La hora exacta se confirma con la institución.",
-          options=items, actions=actions)
+        return reply("El calendario no trae actividades para tu institución o distrito.", actions=actions)
+    interest = state["interest"]
+    pattern = INTERESTS.get(interest, re.escape(normalize(interest or "")))
+    profile = state["context"]
+    matches = [item for item in items if not is_past(item) and event_day_overlap(item)
+               and item["district_id"] in ("ALL", profile["district_id"])
+               and item["institution_id"] in ("ALL", profile["institution_id"])
+               and (not interest or re.search(pattern, normalize(item["title"])))]
+    notes = "El calendario trae fechas. La hora exacta se confirma con la institución."
+    if ampliado:
+        return reply(f"Calendario ampliado al {date_text(SCENARIO_DATE)}. Incluye fechas pasadas y opciones fuera de tus filtros. " + notes,
+                     options=sorted(items, key=lambda item:(is_past(item), not event_day_overlap(item))), actions=actions)
+    if not matches:
+        why = f"No encontré una coincidencia documentada para {interest} con tus filtros." if interest else (
+            "No encontré actividades vigentes que coincidan con tus días, distrito e institución.")
+        return reply(why + " Puedes explorar el calendario ampliado o ajustar una preferencia. " + notes,
+                     actions=[choice("Ver calendario ampliado", "ampliar_eventos"), *actions])
+    note = "Estas actividades mencionan tu interés en el título. " if interest else ""
+    reply(note + f"Estas actividades figuran en el calendario del escenario al {date_text(SCENARIO_DATE)}. " + notes,
+          options=matches, actions=[choice("Ver calendario ampliado", "ampliar_eventos"), *actions])
 
 
 def participation_step(item):
@@ -820,7 +799,7 @@ def participation_step(item):
         missing += " o el acceso digital"
     return f"Consulta a tu institución por {missing} de {name} y confirma si necesitas agendar antes de asistir."
 
-def show_fact(field, item):
+def texto_dato(field, item):
     if field == "location":
         address = item.get("access", {}).get("Dirección")
         if address:
@@ -850,7 +829,16 @@ def show_fact(field, item):
             text += " La fecha ya pasó dentro del escenario de la demo."
     else:
         text = f"El horario publicado de {item['title']} es {item['when']}."
-    reply(text, actions=item_actions(item))
+    return text
+
+
+def show_facts(fields, item):
+    anotar("consultar_campos_ficha", *origen(item))
+    textos = [texto_dato(field, item) for field in dict.fromkeys(fields)]
+    paso = participation_step(item)
+    if len(textos) > 1 and any(paso in text for text in textos):
+        textos = [text.replace(paso, "").strip() for text in textos] + [paso]
+    reply(" ".join(textos), actions=item_actions(item))
 
 
 def named_item(text):
@@ -861,6 +849,14 @@ def named_item(text):
     for item in items:
         if re.search(r"\b" + re.escape(normalize(item["title"])) + r"\b", text):
             return item
+    if re.search(r"\b(?:encuentro estudiantil|semana de pausa)\b", text):
+        calendar, _, _ = catalog()
+        rows = calendar[calendar.event_type.isin(["university_activity","wellbeing_activity"])]
+        for row in rows.to_dict("records"):
+            if re.search(r"\b" + re.escape(normalize(row["title"])) + r"\b", text):
+                anotar("identificar_actividad", "D7")
+                return describe("event", row)
+        return None
     if not re.search(r"\bespacio (?!de\b|que\b|recomendado\b|anterior\b)\w+|\b\w+ (?:pares|orientacion|trayectoria)\b", text):
         return None
     _, _, services = catalog()
@@ -892,6 +888,7 @@ def show_next_step():
     item = state["selected"]
     if not item:
         return reply("Para orientarte sobre cómo participar, primero busquemos una opción.", actions=[choice("Retomar búsqueda", "resume")])
+    anotar("orientar_participacion", *origen(item))
     if is_past(item):
         return reply("Esa fecha ya pasó en el calendario de la demo. Puedes revisar otra actividad.",
                      actions=[choice("Ver actividades", "events")])
@@ -910,6 +907,7 @@ def save_step():
     item = state["selected"]
     if not item or is_past(item):
         return show_next_step()
+    anotar("guardar_paso_en_sesion", *origen(item))
     hint = participation_step(item)
     actions = [choice("Buscar integración", "start")] if state["context"]["goal"] == "human_support" else [
         choice("Ver actividades", "events"), choice("Cambiar horario", "change_time")]
@@ -948,13 +946,15 @@ def perform(action, value):
         state["availability"] = state["time_label"] = None
     elif action == "change_area":
         context["district_id"] = None
+    elif action == "ampliar_eventos":
+        return show_events(ampliado=True)
     elif action == "events":
         return show_events()
     elif action == "event":
         return show_item(value, "Aquí está la información registrada en el calendario de Aethera.")
     elif action == "peer":
         state["search_kind"] = "peers"
-        return show_item(state["result"]["peers"][0], "Podemos retomar este espacio.")
+        return resolve()
     elif action == "other":
         item = alternative()
         if item:
@@ -976,6 +976,8 @@ def perform(action, value):
 
 def scope_reply(academic=False):
     state = st.session_state.nexo
+    anotar("delimitar_ambito")
+    state["waiting"] = None
     state["scope_pending"] = True
     limit = "No puedo resolver ejercicios académicos." if academic else "Esa consulta está fuera del ámbito de NEXO."
     reply(f"{limit} Puedo ayudarte a encontrar actividades y espacios para conectar con otros estudiantes "
@@ -999,18 +1001,21 @@ def urgent_support():
 
 def clarify():
     state = st.session_state.nexo
+    anotar("pedir_aclaracion")
     if state["waiting"]:
-        return ask(state["waiting"])
+        return reply("No alcancé a entender tu consulta. ¿Quieres retomar la búsqueda pendiente o consultar otra cosa sobre integración?",
+                     actions=[choice("Retomar búsqueda", "resume"), choice("Buscar actividades", "start_events")])
     if state["selected"]:
         item = state["selected"]
         reply(f"¿Quieres saber algo sobre {item['title']} o prefieres buscar otra opción?",
               actions=item_actions(item))
     else:
-        reply("¿Buscas una actividad, un espacio para conocer gente o un recurso de apoyo universitario?",
+        reply("No alcancé a entender tu consulta. ¿Buscas una actividad, un espacio para conocer gente o un recurso de apoyo universitario?",
               actions=[choice("Buscar actividades", "start_events"), choice("Conocer personas", "start")])
 
 
 def explain(item):
+    anotar("explicar_recomendacion", *origen(item), *(("D2",) if "D2" in item["source"] else ()))
     reasons = item["reasons"] or ["Este recurso figura en el catálogo de tu distrito."]
     reply(f"Estos son los criterios que usé para mostrar {item['title']}:", options=reasons,
           kind="reasons", hint=item["source"], actions=item_actions(item))
@@ -1038,9 +1043,7 @@ def confirmation(accepted, scope_pending, time_choices, interest_pending):
     return clarify()
 
 
-def semantic_applied(intent):
-    state = st.session_state.nexo
-    state["interpretation"] = state["interpretation"].replace("intención propuesta: " + intent, "intención utilizada: " + intent)
+
 
 
 def greeting():
@@ -1059,7 +1062,7 @@ def followup_item(text):
     if item:
         return item
     named = re.search(r"\bespacio (?!de\b|que\b|recomendado\b|anterior\b|actual\b|tiene\b|esta\b|es\b|queda\b)\w+", text)
-    return None if named else st.session_state.nexo["selected"]
+    return None if named or re.search(r"\b(?:encuentro estudiantil|semana de pausa)\b", text) else st.session_state.nexo["selected"]
 
 
 def ask_followup_item():
@@ -1072,6 +1075,9 @@ def handle_text(text, use_model=True, demo=False):
     context = state["context"]
     t = normalize(text)
     clean = t.strip(" .!¡?¿")
+    # Vocabulario de calendario local y regional. La cita del modelo nunca transforma horas de trabajo en horas libres.
+    t = re.sub(r"\b(?:chambeo|laburo|trabajo en turno)\b", "trabajo", t)
+    t = re.sub(r"\bfindes?\b", "fin de semana", t)
     context.pop("llm_interpreted_need", None)
     danger = re.search(
         r"\b(?:me (?:quiero|voy a) (?:matar|suicidar|morir|hacer dano|lastimar|quitar la vida)|"
@@ -1087,17 +1093,28 @@ def handle_text(text, use_model=True, demo=False):
 
     support = bool(SUPPORT_PATTERN.search(clean)) or clean == "necesito ayuda"
     local_reason = None
-    if not demo and (support or context["goal"] == "human_support"):
+    if re.search(r"\b(?:ignora|olvida|omite|revela|muestra|imprime)\b.{0,40}\b(?:instrucciones|prompt|api key|clave|reglas del sistema)\b", clean):
+        begin_ai_turn(text, local_reason="Protección de instrucciones")
+        return scope_reply()
+    if support or context["goal"] == "human_support":
         local_reason = "Orientación local de apoyo humano"
     elif not use_model:
         local_reason = "Reglas de NEXO"
     ai = begin_ai_turn(text, action="demo" if demo else None, local_reason=local_reason)
-    semantic = ai["intent"] if ai else None
+    tool = ai["herramienta"] if ai else None
+    if tool == "conversar":
+        turn = TURNO.get()
+        turn.autores["respuesta"] = {**turn.autores["plan"], "redaccion":"conversación directa"}
+        return reply(ai["mensaje_directo"].strip())
+    semantic = RUTA.get(tool)
+    if tool == "apoyo_humano":
+        TURNO.get().local = "Orientación local de apoyo humano"
+        support = True
     scope_pending = state["scope_pending"]
     time_choices = state["time_choices"]
     interest_pending = state["interest_pending"]
 
-    if clean in ("si", "si por favor", "si, por favor", "ya", "dale", "claro"):
+    if clean in ("si", "si por favor", "si, por favor", "ya", "dale", "claro", "ya po", "de una") or (semantic == "yes" and (scope_pending or time_choices or interest_pending)):
         return confirmation(True, scope_pending, time_choices, interest_pending)
     if clean in ("no", "no gracias", "no, gracias"):
         return confirmation(False, scope_pending, time_choices, interest_pending)
@@ -1114,34 +1131,39 @@ def handle_text(text, use_model=True, demo=False):
         return greeting()
     if clean in ("gracias", "muchas gracias"):
         return thanks()
-    social = re.search(r"\b(conocer (?:a )?gente|conocer personas|hacer amig\w*|integrarme|integracion|actividades|eventos|vida universitaria|apoyo entre pares)\b", clean)
+    words = clean.split()
+    approximate = any(SequenceMatcher(None, a, "conocer").ratio() >= .80 and
+                      SequenceMatcher(None, b, "gente").ratio() >= .78 for a,b in zip(words,words[1:]))
+    social = SOCIAL_IMPLICITO.search(clean) or approximate or re.search(r"\b(conocer (?:a )?gente|conocer personas|hacer amig\w*|integrarme|integracion|actividades|eventos|vida universitaria|apoyo entre pares)\b", clean)
     wants_events = re.search(r"\b(?:buscar|encontrar|ver|mirar|revisar|explorar) (?:las |los |alguna |algun )?(?:actividades?|eventos?|calendario)\b", clean)
     wants_peers = re.search(r"\b(?:conocer (?:a )?(?:mas )?(?:gente|personas|companer\w*)|hacer amig\w*|apoyo entre pares|buscar (?:un )?espacio)\b", clean)
-    academic = not wants_events and re.search(
-        r"\b(?:derivadas?|ecuaciones?|integrales?|ejercicios? (?:academicos?|de (?:calculo|matematicas|fisica))|"
+    study_peers = re.search(r"\b(?:grupo|companeros?|gente|alguien) (?:de|para) (?:estud|repas|hacer la tarea)", clean)
+    academic = not (wants_events or study_peers) and re.search(
+        r"\b(?:tareas? de (?:calculo|matematicas?|fisica)|derivadas?|ecuaciones?|integrales?|ejercicios? (?:academicos?|de (?:calculo|matematicas|fisica))|"
         r"(?:hacer|resolver|explicar) (?:mi |la |una )?tarea)\b", clean)
     outside_topic = re.search(r"\b(receta|chiste|bitcoin|horoscopo|capital de|pronostico del tiempo|programar en python)\b", clean)
-    if not support and (academic or outside_topic):
-        return scope_reply(academic=bool(academic))
+    if not support and (academic or outside_topic or tool in ("fuera_ambito","fuera_academico") and not social and not wants_events and not study_peers):
+        return scope_reply(academic=bool(academic or tool == "fuera_academico"))
     district, institution = read_location(t, state["waiting"])
     item = state["selected"]
     if not support and re.search(r"\b(?:mis intereses|mis gustos|(?:que|algo) me guste)\b", clean):
         state["interest_pending"] = True
         return reply("¿Qué te interesa? Puedo buscar ese tema en los títulos del calendario de Aethera.")
     interest = next((label for label, pattern in INTERESTS.items() if re.search(pattern, clean)), None)
-    semantic_interest = not interest and ai and ai["interest"] != "none" and semantic in ("activities", "interest")
-    if semantic_interest and not support and not wants_peers:
-        interest = ai["interest"]
+    literal = ai["interes_literal"] if ai else ""
+    if literal and not wants_peers and not interest:
+        interest = literal.strip()
+
+
     if not support and state["interest_pending"] and not interest and not (district or institution):
         short_interest = re.sub(r"^(?:me (?:gustan?|interesan?)|quiero buscar) (?:el |la |los |las )?", "", clean)
-        if re.fullmatch(r"[\w]+(?: +[\w]+){0,3}", short_interest):
+        if "?" not in text and (not ai or literal) and re.fullmatch(r"[\w]+(?: +[\w]+){0,3}", short_interest):
             interest = short_interest
-    if not support and interest and (state["interest_pending"] or wants_events or semantic in ("interest", "activities") or re.search(
+    if not support and interest and (state["interest_pending"] or wants_events or tool == "buscar_actividades" or re.search(
         r"\b(?:club|taller|actividad\w*|me gusta\w*|me interesa\w*|practicar|jugar)\b", clean)):
-        if semantic_interest:
-            semantic_applied(semantic)
         state["interest_pending"] = False
         state["interest"] = interest
+        state["interest_publico"] = interest in INTERESTS
         wants_events = True
     location_query = re.search(
         r"\b(?:donde (?:queda|esta|es|atienden|se (?:hace|realiza))|"
@@ -1156,18 +1178,30 @@ def handle_text(text, use_model=True, demo=False):
         "Cupos": r"\b(?:cupos?|quedan plazas)\b",
         "Inscripción": r"\b(?:necesito (?:una )?cita|hay que agendar|hay que inscribirse|requiere (?:cita|inscripcion)|piden inscripcion)\b",
     }
-    contact_query = next((label for label, pattern in contact_fields.items() if re.search(pattern, t)), None)
-    if not support and (location_query or schedule_query or contact_query):
+    fields = [label for label, pattern in contact_fields.items() if re.search(pattern, t)]
+    if location_query:
+        fields.insert(0, "location")
+    if schedule_query:
+        fields.append("schedule")
+    if tool == "consultar_ficha" and not support:
+        fields.extend(CAMPOS_FICHA[field] for field in ai["campos"])
+    if not support and fields:
         target = followup_item(t)
         if not target:
             return ask_followup_item()
         state["selected"] = target
-        return show_fact("location" if location_query else ("schedule" if schedule_query else contact_query), target)
+        return show_facts(fields, target)
+
+
+    how = re.search(r"\b(?:como (?:participo|participar|puedo participar|me inscribo|contacto|agendo|doy el proximo paso)|que debo confirmar)\b",t)
+    why = re.search(r"\b(?:por que (?:me )?(?:recomiend\w*|eleg\w*|suger\w*|ese|esa)|por cual razon|que te llevo a elegir)\b",t)
+    if not support and (how or why or item and "por donde empiezo" in t):
+        target = followup_item(t)
+        if not target:
+            return ask_followup_item()
+        state["selected"] = target
+        return explain(target) if why else show_next_step()
     if item and not support:
-        if re.search(r"\b(?:como (?:participo|participar|puedo participar|me inscribo|contacto|agendo|doy el proximo paso)|que debo confirmar|por donde empiezo)\b", t):
-            return show_next_step()
-        if re.search(r"\b(?:por que|por cual razon|que te llevo a elegir)\b", t):
-            return explain(item)
         if re.search(r"\b(?:otra (?:opcion|alternativa)|otro recurso|mas opciones|algo mas)\b", t):
             return perform("other", None)
         if re.search(r"\bguard(?:a|ar|ame)\b", t):
@@ -1179,6 +1213,10 @@ def handle_text(text, use_model=True, demo=False):
     if support:
         context["goal"] = "human_support"
         return resolve()
+    if tool == "buscar_actividades" and not wants_peers:
+        wants_events = True
+    if (tool == "buscar_pares" and not wants_events) or study_peers:
+        wants_peers = True
     if wants_events or wants_peers:
         context["goal"] = "social_connection"
         state["search_kind"] = "events" if wants_events else "peers"
@@ -1187,11 +1225,23 @@ def handle_text(text, use_model=True, demo=False):
         context["goal"] = "social_connection"
         return
     available = read_availability(time_text)
+    if not available and ai and ai["franja_literal"] and time_text == t and "trabajo" not in t and not re.search(NEGATIVE_TIME, t):
+        available = read_availability(normalize(ai["franja_literal"]))
+    if ai and ai["franja_literal"] and not available and not re.search(NEGATIVE_TIME, t) and tool == "actualizar_perfil":
+        state["availability"] = state["time_label"] = None
+        context["availability_confirmed"] = context["after_18h_or_weekend"] = False
+        return ask("availability")
+    if tool == "preguntar" and not (available or district or institution or social):
+        field = ai["preguntar"]
+        if field == "interest":
+            state["interest_pending"] = True
+            return reply("¿Qué te interesa? Puedo buscar ese tema en los títulos del calendario de Aethera.")
+        return ask(field)
     if re.search(r"\b(?:cambiar|ajustar) (?:mi |el )?(?:horario|disponibilidad)\b", t) and not available:
         return perform("change_time", None)
     if re.search(r"\b(?:otro distrito|cambiar (?:de )?distrito)\b", t) and not district:
         return perform("change_area", None)
-    if (state["result"] or {}).get("events") and re.search(r"\b(?:actividades|eventos|calendario)\b", t) and not (district or institution or available):
+    if state["result"] and re.search(r"\b(?:actividades|eventos|calendario)\b", t) and not (district or institution or available):
         return show_events()
     if available:
         set_availability(*available)
@@ -1208,51 +1258,32 @@ def handle_text(text, use_model=True, demo=False):
         context["goal"] = context["goal"] or "social_connection"
         return resolve()
     if semantic in ("yes", "no") and (scope_pending or time_choices or interest_pending):
-        semantic_applied(semantic)
         return confirmation(semantic == "yes", scope_pending, time_choices, interest_pending)
     route = {
         "activities": ("start_events", None), "social_connection": ("start", None),
         "change_time": ("change_time", None), "change_area": ("change_area", None),
     }
     if semantic in route and not (semantic == "change_area" and district):
-        semantic_applied(semantic)
         return perform(*route[semantic])
     if semantic == "human_support":
-        semantic_applied(semantic)
         context["goal"] = "human_support"
         return resolve()
     if semantic == "out_of_context" and not (district or institution):
-        semantic_applied(semantic)
         return scope_reply()
-    if semantic == "interest":
-        semantic_applied(semantic)
-        state["interest_pending"] = True
-        return reply("¿Qué tema te interesa? Puedo buscarlo en los títulos del calendario de Aethera.")
-    if semantic in ("location", "schedule", "contact", "why", "how"):
+    if semantic in ("why", "how"):
         target = followup_item(t)
-        semantic_applied(semantic)
         if not target:
             return ask_followup_item()
         state["selected"] = target
-        if semantic in ("location", "schedule"):
-            return show_fact(semantic, target)
-        if semantic == "contact":
-            focus = {"phone": "Teléfono", "email": "Correo", "link": "Enlace",
-                     "capacity": "Cupos", "registration": "Inscripción"}.get(ai["focus"])
-            return show_fact(focus, target) if focus else show_next_step()
-        if semantic == "why":
-            return explain(target)
-        return show_next_step()
+        return explain(target) if semantic == "why" else show_next_step()
+
+
     if item and semantic in ("other", "save"):
-        semantic_applied(semantic)
         return perform(semantic, None)
     if district or institution:
         context["goal"] = context["goal"] or "social_connection"
         return resolve()
-    if semantic in ("greeting", "thanks", "availability"):
-        semantic_applied(semantic)
-        if semantic == "availability":
-            return ask("availability")
+    if semantic in ("greeting", "thanks"):
         return greeting() if semantic == "greeting" else thanks()
     return clarify()
 
@@ -1303,20 +1334,43 @@ def handle_action(text, action, value):
 
 def safe_turn(handler, args, retry_action, retry_value):
     state = st.session_state.nexo
-    previous = {**state, "context": state["context"].copy(), "messages": state["messages"].copy()}
+    before = deepcopy({k:v for k,v in state.items() if k not in ("messages","circuitos")})
+    count = len(state["messages"])
+    services, budget = configuracion(setting)
+    turn = Turno(services, budget, state["circuitos"])
+    token = TURNO.set(turn)
     try:
         handler(*args)
+        if len(state["messages"]) != count + 1:
+            raise RuntimeError("turno incompleto")
+        redactar(state, str(args[0]))
     except Exception as exc:
         LOG.warning("NEXO no completó un turno (%s)", type(exc).__name__)
-        previous["ai_failures"] = state["ai_failures"]
-        previous["ai_backoff_until"] = state["ai_backoff_until"]
-        st.session_state.nexo = previous
-        state = st.session_state.nexo
-        state["ai_style"] = None
-        state["ai_output"] = "Redacción verificada de NEXO"
-        state["interpretation"] = "Error recuperable · búsqueda sin completar"
+        state.update(before)
+        del state["messages"][count:]
+        turn.local = "Recuperación de la sesión"
+        turn.autores.pop("respuesta", None)
         reply("Ocurrió un problema al atender esa solicitud. Conservé los datos de tu búsqueda. Puedes intentarlo de nuevo.",
               actions=[choice("Volver a intentar", retry_action, retry_value)])
+    finally:
+        TURNO.reset(token)
+    trace = turn.resumen()
+    msg = state["messages"][-1]
+    referenced = []
+    if trace["fuentes"]:
+        if msg.get("card"):
+            referenced.append(msg["card"])
+        if msg.get("options") and isinstance(msg["options"][0], dict):
+            referenced.extend(msg["options"])
+        if state["selected"] and any(name in trace["herramientas"] for name in ("explicar_recomendacion","consultar_campos_ficha","guardar_paso_en_sesion")):
+            referenced.append(state["selected"])
+    trace["registros"] = list(dict.fromkeys(x["record_id"] for x in referenced
+                                if re.fullmatch(r"(?:SRV|CAL)_AE_\d+", str(x.get("record_id")))))
+    state["traza"] = trace
+    state["interpretation"] = turn.local or ("Plan de " + turn.autores["plan"]["proveedor"] if "plan" in turn.autores else
+                                            "Acción seleccionada" if handler == handle_action else "Reglas de NEXO")
+    state["ai_output"] = trace["modo_respuesta"]
+    state["memoria"] = (state["memoria"] + [trace["herramientas"] or ["conversacion"]])[-4:]
 
 
 def render_card(item, kind=None, hint=None, step=None):
@@ -1410,10 +1464,29 @@ with st.sidebar:
     with st.expander("Detalles técnicos"):
         st.write(f"Última interacción · {state['interpretation']}")
         st.caption(f"Respuesta · {state.get('ai_output', 'Redacción verificada de NEXO')}")
-        st.caption("Fuentes de la búsqueda · " + (", ".join(state["sources"]) or "Sin consulta al catálogo"))
-        st.json(state["context"])
+        trace = state["traza"]
+        if trace:
+            for phase, author in trace["fases"].items():
+                st.caption(f"{phase.capitalize()} · {author['proveedor']} · {author['modelo']}")
+            st.caption("Herramientas · " + (", ".join(trace["herramientas"]) or "Sin consulta"))
+            st.caption("Fuentes de este turno · " + (", ".join(trace["fuentes"]) or "Sin consulta al catálogo"))
+            if trace["registros"]:
+                st.caption("Registros · " + ", ".join(trace["registros"]))
+            if "respuesta" in trace["fases"]:
+                st.caption(trace["fases"]["respuesta"]["redaccion"])
+            st.caption(f"Duración · {trace['duracion_ms']} ms · {trace['llamadas']} llamadas")
+            st.caption("Respaldo · " + ("activado" if trace["respaldo"] else "sin cambio"))
+            if trace["respaldo"]:
+                for item in trace["intentos"]:
+                    if item["estado"] not in ("aceptado", "en_pausa"):
+                        st.caption(f"{item['proveedor']} · {MOTIVOS.get(item['estado'], item['estado'])}")
+            if trace["intentos"]:
+                st.json(trace["intentos"], expanded=False)
     st.markdown("---")
-    st.caption("Gemini en la conversación · respaldo local automático" if setting("GEMINI_API_KEY") else "Interpretación mediante reglas · sin API")
+    st.caption("Modo local · Ollama y respaldo por reglas" if setting("NEXO_MODO","auto") == "local"
+               else "Agente NEXO · " + (state["ai_output"] if state["traza"] else "listo para conversar"))
+
+
     if state["saved"]:
         st.markdown("**Próximo paso**")
         st.write(state["saved"]["title"])

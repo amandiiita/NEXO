@@ -4,7 +4,7 @@ Creamos NEXO para ayudar a estudiantes a encontrar actividades, espacios de encu
 
 ## 1. Descarga el proyecto
 
-Descarga **NEXO_Conversacional.zip** desde el enlace que te compartimos junto con esta guía. En Mac puedes abrirlo con doble clic. En Windows, haz clic derecho y elige **Extraer todo**. En Linux, elige **Extraer aquí**.
+Descarga [NEXO desde GitHub](https://github.com/amandiiita/NEXO/archive/refs/heads/main.zip). También puedes seleccionar **Code → Download ZIP** en el repositorio. En Mac puedes abrirlo con doble clic. En Windows, haz clic derecho y elige **Extraer todo**. En Linux, elige **Extraer aquí**.
 
 Abre la carpeta extraída. Sabrás que estás en el lugar correcto cuando veas **iniciar.py**, **requirements.txt** y la carpeta **data** juntos. Los datos de la demo ya vienen incluidos.
 
